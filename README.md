@@ -14,7 +14,8 @@ apk add electron       # Alpine edge, testing repository
 ./build-mkxp-z.sh      # only for XP/VX/VX Ace: Alpine does not package mkxp-z
 ```
 
-`unzip` is needed for games shipped as `package.nw`.
+`unzip` is needed for games shipped as `package.nw`. Games packed inside `Game.exe` with Enigma
+Virtual Box are unpacked on first run by `lib/evb.js`, which needs nothing beyond `electron`.
 
 ## Use
 
@@ -30,6 +31,7 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 | RPG Maker MV, MZ, other NW.js games (`package.json`, `package.nw`) | `electron` + rpgm's NW.js shim |
 | Electron games (`resources/app`, `app.asar`) | `electron` |
 | RPG Maker XP, VX, VX Ace | `mkxp-z` + the shims in `lib/rgss/` |
+| Any of these packed in an Enigma Virtual Box `.exe` | unpacked to `~/.local/share/rpgm/unpacked/`, then as above |
 
 ## How it works
 
@@ -37,7 +39,10 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 - `lib/electron-preload.js` provides the NW.js APIs games use (`nw.Window`, `nw.App`, `nw.gui`,
   `process.mainModule`, `window.prompt` via zenity/kdialog/yad) with Node.js in the page.
 - `lib/ci.js` resolves file names case-insensitively, as Windows does; `lib/serve.js` serves game
-  files over `app://`, a bounded number at a time.
+  files over `app://`, a bounded number at a time, cross-origin isolated so `SharedArrayBuffer`
+  works as it did under NW.js.
+- Steam's `greenworks` is replaced by a stand-in that reports Steam as unavailable, so games that
+  load it keep running without achievements or cloud saves.
 - The game runs from the folder holding `index.html`, so mod loaders find `www/mods`. Saves stay in
   the game's `save/` folder, compatible with Windows; browser storage is in `~/.local/share/rpgm/`.
 - `lib/rgss/all.rb` loads mkxp-z's `win32_wrap.rb` and `kgl2_wrap.rb`, then shims for what Windows
@@ -48,10 +53,10 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 ## Limitations
 
 - MV/MZ need Alpine edge, where `electron` lives.
-- No `SharedArrayBuffer` (games are not served cross-origin isolated); Steam plugins such as
-  `greenworks` and other Windows DLLs cannot load.
-- Games packed inside `Game.exe` (Enigma Virtual Box) must be unpacked first, e.g. with
-  [evbunpack](https://github.com/mos9527/evbunpack).
+- Windows DLLs cannot load; Steam features are off (see above).
+- The Enigma unpacker is a port of [evbunpack](https://github.com/mos9527/evbunpack)'s current
+  format and is tested against it on generated archives; very old Enigma versions use a layout it
+  does not read.
 - Games get full access to your files, as with NW.js. Run only games you trust.
 
 ## Tests
@@ -62,5 +67,6 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 
 Based on rpgmakermlinux-cicpoffs by bakustarver. mkxp-z by Roza and contributors runs the RGSS
 games; its `win32_wrap.rb` and `kgl2_wrap.rb` (Ancurio, Splendide Imaginarius, white-axe) are
-extended by the CC0 shims in `lib/rgss/`. Most of the code was written by Claude (Anthropic) with
-the maintainer, against real games. GPL-3.0.
+extended by the CC0 shims in `lib/rgss/`. `lib/evb.js` is ported from evbunpack by mos9527
+(Apache-2.0) and aplib by Sandor Nemes (GPL-3.0). Most of the code was written by Claude
+(Anthropic) with the maintainer, against real games. GPL-3.0.

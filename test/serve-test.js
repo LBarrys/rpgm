@@ -25,6 +25,8 @@ const url = p => 'app://game' + p;
   is('with its content type', r.headers.get('content-type'), 'image/png');
   is('and its length', r.headers.get('content-length'), '10');
   is('and the whole file', await r.text(), '0123456789');
+  is('pages are cross-origin isolated (opener)', r.headers.get('cross-origin-opener-policy'), 'same-origin');
+  is('pages are cross-origin isolated (embedder)', r.headers.get('cross-origin-embedder-policy'), 'credentialless');
 
   r = await respond(root, url('/img/system/iconset.png'), 'bytes=2-5');
   is('a byte range is a 206', r.status, 206);

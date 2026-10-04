@@ -1,13 +1,20 @@
 #!/bin/sh
 set -eu
 
-VERSION=0.2.0
-here=$(dirname "$(readlink -f "$0")")/lib
+VERSION=0.3.0
+self=$(readlink -f "$0")
+here=$(dirname "$self")/lib
 
 die() { printf 'rpgm: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 find_ci() { (cd "$game" && find . -maxdepth 3 -ipath "./$1" 2>/dev/null | head -n 1 | cut -c3-); }
 has() { [ -n "$(find_ci "$1")" ]; }
+evb_exe() {
+	for f in "$game"/*.[eE][xX][eE]; do
+		[ -f "$f" ] && head -c 4096 "$f" | tr '\000' '\n' | grep -qF .enigma1 && { echo "$f"; return 0; }
+	done
+	return 1
+}
 
 usage() {
 	cat <<EOF
@@ -45,6 +52,7 @@ target=${1:-.}
 [ -e "$target" ] || die "no such file or directory: $target"
 [ -d "$target" ] || target=$(dirname "$target")
 game=$(cd "$target" && pwd -P)
+unpacked="${XDG_DATA_HOME:-$HOME/.local/share}/rpgm/unpacked/$(printf %s "$game" | md5sum | cut -c1-12)"
 
 if has www/js/rpg_core.js || has js/rpg_core.js; then engine='mv'
 elif has js/rmmz_core.js; then engine='mz'
@@ -52,6 +60,7 @@ elif has package.json; then engine='nwjs'
 elif has package.nw; then engine='nwjs-zip'
 elif has resources/app.asar || has resources/app/package.json; then engine='electron-app'
 elif has 'data/*.r?data*' || { has game.ini && has 'game.rgss*'; }; then engine='rgss'
+elif packed=$(evb_exe); then engine='evb'
 else engine=
 fi
 
@@ -76,6 +85,7 @@ info)
 	[ -z "$core" ] || sed -n "s/^Utils\.RPGMAKER_VERSION *= *.\([0-9.]*\).*/version: \1/p" "$game/$core"
 	case $engine in
 	'') ;;
+	evb) echo "packed:  $(basename "$packed") (Enigma Virtual Box), unpacked on first run to $unpacked" ;;
 	rgss)
 		if have mkxp-z; then echo "runtime: $(command -v mkxp-z)"; else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"; fi
 		if [ -n "$(find_ci mkxp.json)" ]; then echo "config:  $(find_ci mkxp.json)"; else echo "config:  none (rpgm --setup writes one)"; fi ;;
@@ -115,24 +125,28 @@ case $engine in
 mv | mz | nwjs)
 	export RPGM_GAME="$game" RPGM_TEST="$test"
 	run_electron "$here" ;;
-nwjs-zip)
-	have unzip || die "unzip is required (apk add unzip)"
-	zip="$game/$(find_ci package.nw)"
-	dir="${XDG_DATA_HOME:-$HOME/.local/share}/rpgm/unpacked/$(printf %s "$game" | md5sum | cut -c1-12)"
-	if [ ! -f "$dir/.rpgm-unpacked" ] || [ -n "$(find "$zip" -newer "$dir/.rpgm-unpacked")" ]; then
-		mkdir -p "$dir" || die "cannot create $dir"
-		unzip -qo "$zip" -d "$dir" || die "cannot unpack $zip"
-		touch "$dir/.rpgm-unpacked"
+nwjs-zip | evb)
+	[ "$engine" = evb ] || packed="$game/$(find_ci package.nw)"
+	if [ ! -f "$unpacked/.rpgm-unpacked" ] || [ -n "$(find "$packed" -newer "$unpacked/.rpgm-unpacked")" ]; then
+		mkdir -p "$unpacked" || die "cannot create $unpacked"
+		if [ "$engine" = nwjs-zip ]; then
+			have unzip || die "unzip is required (apk add unzip)"
+			unzip -qo "$packed" -d "$unpacked" || die "cannot unpack $packed"
+		elif have node; then node "$here/evb.js" "$packed" "$unpacked" || exit 1
+		else
+			have electron || die "unpacking needs electron (apk add electron) or node"
+			ELECTRON_RUN_AS_NODE=1 electron "$here/evb.js" "$packed" "$unpacked" || exit 1
+		fi
+		touch "$unpacked/.rpgm-unpacked"
 	fi
-	export RPGM_GAME="$dir" RPGM_TEST="$test"
-	run_electron "$here" ;;
+	exec sh "$self" ${test:+--test} "$unpacked" ;;
 electron-app)
 	app="$game/$(find_ci resources/app.asar)"
 	[ -f "$app" ] || app="$game/$(find_ci resources/app)"
 	run_electron "$app" ;;
 rgss)
 	have mkxp-z || die "XP/VX/VX Ace games need mkxp-z (./build-mkxp-z.sh builds it)"
-	[ -n "$(find_ci mkxp.json)" ] || echo "rpgm: no mkxp.json; 'rpgm --setup' writes one that loads the shims" >&2
+	[ -n "$(find_ci mkxp.json)" ] || echo "rpgm: no mkxp.json; 'rpgm --setup \"$game\"' writes one that loads the shims" >&2
 	cd "$game"
 	pre=$(mkxp_preload_dir || true)
 	[ -z "$pre" ] || export RPGM_MKXPZ_PRELOAD="$pre"

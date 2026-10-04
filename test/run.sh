@@ -14,7 +14,7 @@ check() {
 }
 run() { out=$(sh ./rpgm "$@" 2>&1); }
 
-mkdir -p "$fx/mv/www/js" "$fx/mz/js" "$fx/zip" "$fx/eapp/resources/app" "$fx/xp/Data" "$fx/vx/data" "$fx/none"
+mkdir -p "$fx/mv/www/js" "$fx/mz/js" "$fx/zip" "$fx/eapp/resources/app" "$fx/xp/Data" "$fx/vx/data" "$fx/none" "$fx/evb" "$fx/exe"
 echo "Utils.RPGMAKER_VERSION = \"1.6.1\";" >"$fx/mv/www/js/rpg_core.js"
 echo "Utils.RPGMAKER_VERSION = \"1.8.0\";" >"$fx/mz/js/rmmz_core.js"
 : >"$fx/zip/package.nw"
@@ -23,6 +23,8 @@ echo '{}' >"$fx/eapp/resources/app/package.json"
 : >"$fx/vx/data/scripts.RVDATA2"
 echo '{}' >"$fx/vx/mkxp.json"
 : >"$fx/mv/Game.exe"
+printf 'MZ\000\000.enig\000ma1' >"$fx/exe/Game.exe"
+printf 'MZ\000\000.enigma1\000' >"$fx/evb/GAME.EXE"
 
 echo "== rpgm"
 run --version; check 'reports its version' 'rpgm 0.'
@@ -34,6 +36,8 @@ run --info "$fx/eapp"; check 'Electron games are detected' 'engine:  electron-ap
 run --info "$fx/xp"; check 'XP is detected' 'engine:  rgss'; check 'a missing mkxp.json is reported' 'config:  none'
 run --info "$fx/vx"; check 'detection ignores letter case' 'engine:  rgss'; check 'an mkxp.json is found' 'config:  mkxp.json'
 run --info "$fx/none"; check 'an empty folder is not a game' 'engine:  not recognized'
+run --info "$fx/evb"; check 'an Enigma-packed exe is detected' 'engine:  evb'; check 'and named' 'GAME.EXE (Enigma'
+run --info "$fx/exe"; check 'a plain exe is not taken for Enigma' 'engine:  not recognized'
 run "$fx/none"; check 'running a non-game fails' 'no RPG Maker game found'
 run --setup "$fx/xp"; check '--setup writes mkxp.json' 'Wrote'
 out=$(cat "$fx/xp/mkxp.json"); check '--setup loads the shims' 'rgss/all.rb"]'; check '--setup turns F12 off' '"enableReset": false'
@@ -49,6 +53,15 @@ if command -v node >/dev/null 2>&1; then
 		pass=$((pass + $(printf '%s\n' "$out" | grep -c '^ok '))); fail=$((fail + $(printf '%s\n' "$out" | grep -vc '^ok ')))
 		printf '%s\n' "$out" | sed 's/^ok /  ok /'
 	done
+	mkdir -p "$fx/packed" "$fx/bin"
+	node -e "const { evb } = require('./test/evb-test.js'); const f = (name, data) => ({ name, data: Buffer.from(data) });
+require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', children: [f('package.json', '{}'),
+  { name: 'www', children: [f('index.html', ''), { name: 'js', children: [f('rpg_core.js', '')] }] }] }))" "$fx/packed/Game.exe"
+	# shellcheck disable=SC2016
+	printf '#!/bin/sh\necho "electron got $RPGM_GAME"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
+	check 'an Enigma-packed game is unpacked and run' "electron got $fx/data/rpgm/unpacked/"
+	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
 	for f in lib/*.js; do
 		if node --check "$f" 2>/dev/null; then pass=$((pass + 1)); else fail=$((fail + 1)); echo "FAIL $f does not parse"; fi
 	done
