@@ -66,6 +66,11 @@ in for NW.js — same Chromium, same Node.js in the page, kept current by `apk`.
   makes them search one level too high and silently find nothing.
 - **Saves** are written by the game itself into `www/save/` or `save/`, byte-identical to what
   NW.js wrote, so they move freely to and from a Windows install.
+- **Serving files** (`lib/serve.js`). Game files reach the page over `app://`, read by Node with at
+  most 32 open at once, and `rpgm` raises the open-file limit to the hard maximum before starting
+  Electron. Games that request hundreds of assets at boot otherwise exhaust the default 1024 file
+  descriptors, and Electron aborts with `No file descriptors available`.
+- **`package.json`** is read the way NW.js reads it: comments and trailing commas are accepted.
 - **Per-game profile.** Browser storage lives in `~/.local/share/rpgm/<id>/`. `package.nw` games
   are unpacked to `~/.local/share/rpgm/unpacked/<id>/`.
 - Nothing leaves your machine except what the game requests: Electron's spellchecker, which would

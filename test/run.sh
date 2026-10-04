@@ -145,7 +145,11 @@ static() {
 unit() {
 	echo "== unit: lib/"
 	if ! command -v node >/dev/null 2>&1; then skipped 'node unit tests' 'node is not installed'; return 0; fi
-	ci=$(node test/ci-test.js 2>&1) || true
+	ci=$(for t in test/*-test.js; do (
+		# shellcheck disable=SC3045
+		ulimit -n 256 2>/dev/null
+		node "$t" 2>&1
+	) || true; done)
 	printf '%s\n' "$ci" | while IFS= read -r l; do
 		case $l in ok\ *) printf '%s  ok%s %s\n' "$grn" "$off" "${l#ok }" ;;
 		*) printf '%sFAIL%s %s\n' "$red" "$off" "${l#FAIL }" ;; esac

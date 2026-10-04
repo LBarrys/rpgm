@@ -432,6 +432,8 @@ wayland | x11) flags="--ozone-platform=$RPGM_PLATFORM" ;;
 *) die "RPGM_PLATFORM must be wayland or x11" ;;
 esac
 [ "$(id -u)" != 0 ] || flags="$flags --no-sandbox"
+# shellcheck disable=SC3045
+ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
 
 run_nwjs() {
 	have electron || die "electron is not installed (apk add electron, from Alpine edge's testing repository)"
