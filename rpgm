@@ -1,8 +1,7 @@
 #!/bin/sh
 set -eu
 
-VERSION=0.1.0
-
+VERSION=0.2.0
 here=$(dirname "$(readlink -f "$0")")/lib
 
 die() { printf 'rpgm: %s\n' "$*" >&2; exit 1; }
@@ -12,47 +11,34 @@ has() { [ -n "$(find_ci "$1")" ]; }
 
 usage() {
 	cat <<EOF
-Usage: rpgm [OPTIONS] [GAME_DIR | GAME.exe]
+Usage: rpgm [-t | -i | -s] [GAME_DIR | GAME.exe]
 
-Runs a Windows RPG Maker MV/MZ game natively (default: current directory).
+Runs a Windows RPG Maker game natively (default: the current directory).
 
-Options:
-  -t, --test           playtest mode (F9 debug menu, F12 devtools)
-  -i, --info           show what was detected, and why mods, plugins or - for
-                       XP/VX/VX Ace games - mkxp-z settings are not taking effect
-  -s, --setup          XP/VX/VX Ace only: write the game an mkxp.json that loads
-                       rpgm's compatibility shims
-  -h, --help           show this help
-  -V, --version        show the version
+  -t, --test      playtest mode (F9 debug menu, F12 devtools)
+  -i, --info      show what was detected
+  -s, --setup     XP/VX/VX Ace: write an mkxp.json that loads the shims
+  -h, --help      show this help
+  -V, --version   show the version
 
-Environment:
-  RPGM_PLATFORM        wayland or x11 (default: wayland if WAYLAND_DISPLAY is set)
-  RPGM_RGSS_SKIP       shims to leave out, e.g. "user32_wrap textmode"
-  RPGM_MKXPZ_PRELOAD   mkxp-z's scripts/preload, when it is not next to the mkxp-z
-                       command (that is where rpgm looks for win32_wrap.rb)
-  RPGM_SHIM_DIR        rpgm's own lib/rgss, for a copy kept somewhere else
-
-Runtime:
-  apk add electron          Alpine edge, testing repository
-
-RPG Maker XP/VX/VX Ace games are handed to mkxp-z when it is installed.
+Environment: RPGM_PLATFORM (wayland or x11), RPGM_RGSS_SKIP (shims to leave
+out), RPGM_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found).
 EOF
 }
 
-test=
-info=
-setup=
+mode=run test=
 while [ $# -gt 0 ]; do
 	case $1 in
-	-t | --test) test=1; shift ;;
-	-i | --info) info=1; shift ;;
-	-s | --setup) setup=1; shift ;;
+	-t | --test) test=1 ;;
+	-i | --info) mode=info ;;
+	-s | --setup) mode=setup ;;
 	-h | --help) usage; exit 0 ;;
 	-V | --version) echo "rpgm $VERSION"; exit 0 ;;
 	--) shift; break ;;
 	-*) die "unknown option $1 (see --help)" ;;
 	*) break ;;
 	esac
+	shift
 done
 [ $# -le 1 ] || die "expected one game path (see --help)"
 target=${1:-.}
@@ -65,367 +51,51 @@ elif has js/rmmz_core.js; then engine='mz'
 elif has package.json; then engine='nwjs'
 elif has package.nw; then engine='nwjs-zip'
 elif has resources/app.asar || has resources/app/package.json; then engine='electron-app'
-elif has game.ini && has 'game.rgss*'; then engine='rgss'
-elif has 'data/*.r?data*'; then engine='rgss'
-else engine=''
+elif has 'data/*.r?data*' || { has game.ini && has 'game.rgss*'; }; then engine='rgss'
+else engine=
 fi
 
-plugin_report() {
-	if [ -f "$game/www/js/plugins.js" ]; then www="$game/www"
-	elif [ -f "$game/js/plugins.js" ]; then www="$game"
-	else return 0
-	fi
-	dir="$www/js/plugins"
-
-	entries=$(tr -d '\r' <"$www/js/plugins.js" |
-		sed -e 's/}[[:space:]]*,[[:space:]]*{/}\
-{/g' | grep '"name"' |
-		while IFS= read -r line; do
-			name=$(printf '%s\n' "$line" | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n 1 |
-				sed -e 's/.*:[[:space:]]*"//' -e 's/"$//')
-			status=$(printf '%s\n' "$line" | grep -o '"status"[[:space:]]*:[[:space:]]*[a-z]*' | head -n 1 |
-				sed -e 's/.*:[[:space:]]*//')
-			[ -n "$name" ] && printf '%s\t%s\n' "$name" "${status:-true}"
-		done)
-	names=$(printf '%s\n' "$entries" | cut -f1)
-	files=$(find "$dir" -maxdepth 1 -type f -iname '*.js' 2>/dev/null | sed 's|.*/||' | sort)
-	echo "plugins: $(printf '%s\n' "$entries" | grep -c . || true) registered, $(printf '%s\n' "$entries" | grep -c "	true$" || true) enabled, $(printf '%s\n' "$files" | grep -c . || true) files"
-
-	unreg=$(printf '%s\n' "$files" | while IFS= read -r f; do
-		[ -n "$f" ] || continue
-		printf '%s\n' "$names" | grep -qixF "${f%.[jJ][sS]}" || printf '%s\n' "$f"
-	done)
-	if [ -n "$unreg" ]; then
-		echo "  NOT REGISTERED (present but never loaded; add them to js/plugins.js):"
-		printf '%s\n' "$unreg" | sed 's/^/    /'
-	fi
-
-	report=$(printf '%s\n' "$entries" | while IFS="	" read -r name status; do
-		[ -n "$name" ] || continue
-		[ "$status" = "true" ] || continue
-		[ -f "$dir/$name.js" ] && continue
-		real=$(printf '%s\n' "$files" | grep -ixF "$name.js" | head -n 1 || true)
-		if [ -n "$real" ]; then printf '    plugins.js says "%s" but the file is %s (rename it)\n' "$name" "$real"
-		else printf '    %s.js is enabled but missing\n' "$name"; fi
-	done)
-	[ -z "$report" ] || { echo "  BROKEN ENTRIES:"; printf '%s\n' "$report"; }
-
-	off=$(printf '%s\n' "$entries" | grep -v "	true$" | cut -f1 || true)
-	[ -z "$off" ] || { echo "  DISABLED (\"status\":false):"; printf '%s\n' "$off" | sed 's/^/    /'; }
-
-	if [ -d "$www/mods" ]; then
-		loaders=$(printf '%s\n' "$names" | grep -iE 'modding|mod[_ -]?(loader|manager|system)|^mods?$' || true)
-		nmods=$(find "$www/mods" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
-		echo "mods:    $nmods item(s) in $(basename "$www")/mods"
-		if [ -n "$loaders" ]; then
-			printf '    loaded at run time by: %s\n' "$(printf '%s\n' "$loaders" | tr '\n' ' ')"
-		else
-			echo "    but no mod-loader plugin is registered, so none of them load"
-		fi
-	fi
-}
-
-unknown_report() {
-	if has 'data/*.wolf' || has 'data/basicdata/*'; then
-		echo "         This is a Wolf RPG Editor game, not RPG Maker. There is no native"
-		echo "         player for it; it runs under Wine."
-	elif has 'rpg_rt.ldb' || has 'rpg_rt.lmt' || has 'rpg_rt.exe'; then
-		echo "         This is RPG Maker 2000/2003. Those run natively under easyrpg-player,"
-		echo "         which rpgm does not wrap because it needs no help: apk add easyrpg-player,"
-		echo "         then run easyrpg-player in this folder."
-	elif has '*.xp3' || has 'data.xp3'; then
-		echo "         This is a KiriKiri/KAG game (.xp3 archives), not RPG Maker. It runs"
-		echo "         under Wine."
-	elif has 'game/*.rpa' || has 'renpy/*'; then
-		echo "         This is a Ren'Py game. Ren'Py ships native Linux builds - look for a"
-		echo "         .sh launcher here, or get the Linux release instead of the Windows one."
-	elif has '*.pck'; then
-		echo "         This looks like a Godot game. apk add godot (Alpine edge, testing) and"
-		echo "         open the .pck with it; rpgm does not wrap Godot because it needs no help."
-	elif [ -n "$(cd "$game" && find . -maxdepth 1 -iname '*.exe' 2>/dev/null | head -n 1)" ]; then
-		echo "         There is a .exe here but none of the data folders any engine rpgm knows"
-		echo "         would put beside it. Most often the game is packed inside the .exe with"
-		echo "         Enigma Virtual Box; unpack it first (https://github.com/mos9527/evbunpack)"
-		echo "         and point rpgm at what comes out."
-	elif [ -z "$(cd "$game" && find . -maxdepth 1 -mindepth 1 2>/dev/null | head -n 1)" ]; then
-		echo "         The folder is empty."
-	else
-		echo "         Nothing here looks like a game folder: no www/, js/, Data/, package.json"
-		echo "         or .exe. If the game is in a subfolder, point rpgm at that instead."
-	fi
-}
-
 mkxp_preload_dir() {
+	[ -z "${RPGM_MKXPZ_PRELOAD:-}" ] || { echo "$RPGM_MKXPZ_PRELOAD"; return 0; }
 	m=$(command -v mkxp-z 2>/dev/null) || return 1
-	m=$(readlink -f "$m")
-	for d in "$(dirname "$m")/.." "$(dirname "$m")" /usr/local /usr; do
-		for p in "$d/lib/mkxp-z/scripts/preload" "$d/scripts/preload"; do
-			[ -f "$p/win32_wrap.rb" ] && { (cd "$p" && pwd -P); return 0; }
-		done
+	m=$(dirname "$(readlink -f "$m")")
+	for p in "$m/../lib/mkxp-z/scripts/preload" "$m/scripts/preload"; do
+		[ -f "$p/win32_wrap.rb" ] && { (cd "$p" && pwd -P); return 0; }
 	done
 	return 1
 }
 
-conf_get() {
-	printf '%s\n' "$conf_keys" | awk -F'\t' -v k="$1" '$1 == k {print $2; found = 1}
-		END {exit !found}'
-}
-
-num() {
-	n=${1:-0}
-	case $n in *.*) n=$(printf '%s' "$n" | sed -e 's/0*$//' -e 's/\.$//') ;; esac
-	printf '%s' "${n:-0}"
-}
-
-graphics_report() {
-	up=$(conf_get smoothScaling || echo 0)
-	down=$(conf_get smoothScalingDown || echo 0)
-	bmp=$(conf_get bitmapSmoothScaling || echo 0)
-	bmpdown=$(conf_get bitmapSmoothScalingDown || echo 0)
-	case ${up:-0}${down:-0}${bmp:-0}${bmpdown:-0} in
-	0000) echo "scaling: nearest-neighbour throughout (mkxp-z's default; crisp pixels)" ;;
-	*) echo "scaling: screen $up/$down, bitmaps $bmp/$bmpdown (0 nearest, 1 bilinear, 2 bicubic, 3 lanczos3, 4 xBRZ)" ;;
-	esac
-
-	case ${up:-0} in 2 | 3 | 4) blit=1 ;; *) blit= ;; esac
-	case ${down:-0} in 2 | 3 | 4) blit=1 ;; esac
-	[ -z "$blit" ] || echo "         this disables framebuffer blitting, which is the faster path on Linux"
-
-	if [ "${up:-0}" = 4 ] && [ "$(num "$(conf_get xbrzScalingFactor || echo 1)")" = 1 ]; then
-		echo "         xBRZ is on but \"xbrzScalingFactor\" is 1: set it to at least your"
-		echo "         window height divided by the game's, or it has nothing to work with"
-	fi
-
-	if [ "$(conf_get smoothScalingMipmaps || echo false)" = true ] &&
-		[ "${down:-0}" != 1 ] && [ "${bmpdown:-0}" != 1 ]; then
-		echo "         \"smoothScalingMipmaps\" does nothing unless \"smoothScalingDown\" or"
-		echo "         \"bitmapSmoothScalingDown\" is 1"
-	fi
-
-	if [ "$(conf_get enableHires || echo false)" = true ]; then
-		tex=$(num "$(conf_get textureScalingFactor || echo 1)")
-		fb=$(num "$(conf_get framebufferScalingFactor || echo 1)")
-		atlas=$(num "$(conf_get atlasScalingFactor || echo 1)")
-		echo "hires:   on, scaling factors texture $tex, framebuffer $fb, atlas $atlas"
-		[ "$tex$fb$atlas" != 111 ] ||
-			echo "         all three are 1, so the Hires/ replacements will not be used"
-		[ -d "$game/Hires" ] || echo "         but there is no Hires/ folder next to the game to read from"
-	fi
-
-	if [ "$(conf_get subImageFix || echo false)" = true ]; then
-		echo "         \"subImageFix\" is on: a workaround for broken drivers that costs speed,"
-		echo "         worth turning off unless text or the tileset fails to draw without it"
-	fi
-}
-
-rgss_report() {
-	case $(find_ci 'data/scripts.r*data*') in
-	*.rxdata) echo "rgss:    XP (RGSS1)" ;;
-	*.rvdata) echo "rgss:    VX (RGSS2)" ;;
-	*.rvdata2) echo "rgss:    VX Ace (RGSS3)" ;;
-	esac
-	if have mkxp-z; then echo "runtime: mkxp-z ($(command -v mkxp-z))"
-	else echo "runtime: mkxp-z NOT INSTALLED (https://github.com/mkxp-z/mkxp-z)"
-	fi
-
-	suggest=
-	conf=$(find_ci 'mkxp.json')
-	if [ -z "$conf" ]; then
-		echo "config:  no mkxp.json (mkxp-z runs on its defaults)"
-	else
-		err=$(awk -f "$here/json5check.awk" "$game/$conf" 2>/dev/null) || true
-		if [ -n "$err" ]; then
-			echo "config:  $conf is NOT VALID: line $err"
-			echo "         mkxp-z cannot parse it, so it discards the whole file and every"
-			echo "         setting in it goes back to its default. Nothing is shown on screen."
-			suggest=1
-		else
-			echo "config:  $conf parses"
-		fi
-		conf_keys=$(awk -f "$here/json5get.awk" "$game/$conf" 2>/dev/null || true)
-		miss=$(printf '%s\n' "$conf_keys" | awk -F'\t' '$1 == "preloadScript" {print $2}' |
-			while IFS= read -r p; do
-				[ -n "$p" ] || continue
-				case $p in /*) [ -f "$p" ] || printf '%s\n' "$p" ;; *) [ -f "$game/$p" ] || printf '%s\n' "$p" ;; esac
-			done)
-		[ -z "$miss" ] || { echo "         these .rb paths in it do not exist:"; printf '%s\n' "$miss" | sed 's/^/           /'; suggest=1; }
-		if [ -z "$err" ] && [ "$(conf_get enableReset || echo true)" != false ]; then
-			echo "         \"enableReset\" is not false, so F12 resets the game. Most crash on"
-			echo "         the reset rather than restart; add \"enableReset\": false."
-		fi
-	fi
-
-	[ -z "$conf" ] || graphics_report
-
-	dlls=$(cd "$game" && find . -maxdepth 3 -iname '*.dll' 2>/dev/null | wc -l | tr -d ' ')
-	if [ "$dlls" != 0 ]; then
-		echo "win32:   $dlls Windows .dll file(s); Win32API cannot load them (\"Exec format error\")."
-		echo "         Games normally carry on without them, minus whatever they did."
-		suggest=1
-	fi
-	if [ -z "$conf" ] || ! printf '%s\n' "$conf_keys" | grep -q 'win32_wrap\|rgss/all\.rb'; then
-		if [ -n "$(cd "$game" && find . -maxdepth 4 -name '*.rb' 2>/dev/null | head -400 |
-			while IFS= read -r f; do
-				grep -q "Win32API" "$f" 2>/dev/null && { echo x; break; }
-			done)" ]; then
-			echo "win32api: the game calls Win32API but mkxp-z's win32_wrap.rb is not preloaded."
-			echo "         Without it every such call raises instead of doing nothing, and takes"
-			echo "         the rest of its script down - the game then dies at boot, or later"
-			echo "         with \"uninitialized constant\" for something that script defined."
-			suggest=1
-		fi
-	fi
-
-	fonts=$(find_ci 'fonts')
-	if [ -n "$fonts" ]; then
-		echo "fonts:   $fonts holds $(find "$game/$fonts" -maxdepth 1 -type f \( -iname '*.ttf' -o -iname '*.otf' \) | wc -l | tr -d ' ') .ttf/.otf file(s)"
-	elif [ -n "$conf" ] && conf_get fontSub >/dev/null; then
-		echo "fonts:   no Fonts/ folder, but mkxp.json maps fonts with \"fontSub\""
-	else
-		echo "fonts:   no Fonts/ folder and no \"fontSub\" in mkxp.json. If text comes out as"
-		echo "         boxes, the game is asking for a Windows font: put a .ttf next to the"
-		echo "         game in Fonts/, or map its name in mkxp.json with \"fontSub\"."
-	fi
-
-	crlf=$(cd "$game" && find . \( -iname '*.json' -o -iname '*.txt' \) 2>/dev/null | head -200 |
-		while IFS= read -r f; do
-			[ "$(head -c 4096 "$f" | tr -dc '\r' | wc -c | tr -d ' ')" = 0 ] || echo x
-		done | wc -l | tr -d ' ')
-	if [ "$crlf" != 0 ]; then
-		echo "data:    $crlf of the first 200 .json/.txt files have Windows (CRLF) line endings"
-		dec=$(cd "$game" && find . -name '*.rb' 2>/dev/null | head -2000 |
-			while IFS= read -r f; do
-				grep -qF "', \"\\n\", \"\\t\"" "$f" 2>/dev/null && { printf '%s\n' "${f#./}"; break; }
-			done)
-		[ -z "$dec" ] || printf '%s\n' "         and $dec decodes JSON without handling \"\\r\", so it will" \
-			"         read them as empty (\"not an array or hash\", or nil errors further on)"
-		echo "         -> the shims below include textmode.rb, which reads as Windows does"
-		suggest=1
-	fi
-
-	[ -n "$suggest" ] || return 0
-	if [ -n "$conf" ] && printf '%s\n' "$conf_keys" | grep -q 'rgss/all\.rb'; then
-		echo "shims:   $conf already loads rpgm's compatibility shims"
-	elif [ -z "$conf" ]; then
-		echo "shims:   not loaded. \`rpgm --setup\` writes the mkxp.json that loads them."
-	else
-		echo "shims:   not loaded. Add this to $conf, and \"enableReset\": false with it:"
-		echo "           \"preloadScript\": [\"$here/rgss/all.rb\"]"
-	fi
-}
-
-rgss_setup() {
-	conf=$(find_ci 'mkxp.json')
-	if [ -n "$conf" ]; then
-		echo "$game/$conf already exists; rpgm will not rewrite it."
-		echo "Add these two keys by hand:"
-		echo "  \"preloadScript\": [\"$here/rgss/all.rb\"],"
-		echo "  \"enableReset\": false"
-		return 0
-	fi
-	[ -w "$game" ] || die "cannot write to $game"
-	cat >"$game/mkxp.json" <<EOF
-{
-	// Written by rpgm. Delete this file to go back to mkxp-z's own defaults.
-	// all.rb loads mkxp-z's win32_wrap.rb and kgl2_wrap.rb and rpgm's shims,
-	// in the order they need. RPGM_RGSS_SKIP leaves individual ones out.
-	"preloadScript": ["$here/rgss/all.rb"],
-
-	// F12 restarts the game, which most cannot survive - their Windows builds
-	// ship a DLL that swallows the key, and that DLL cannot load here.
-	"enableReset": false
-
-	// ---- tuning -------------------------------------------------------------
-	// Everything below is commented out and shows mkxp-z's own default, so the
-	// engine decides until you say otherwise. Uncomment what you want, and put a
-	// comma on the line above it. "rpgm --info" checks the combinations that
-	// silently do nothing.
-
-	// How the game screen and individual bitmaps are scaled:
-	//   0 nearest-neighbour  1 bilinear  2 bicubic  3 lanczos3  4 xBRZ
-	// 0 keeps pixel art crisp. Anything past 1 turns off framebuffer blitting,
-	// which is the faster path on Linux. xBRZ is built for pixel art but needs
-	// "xbrzScalingFactor" set to at least window height / game height.
-	// "smoothScaling": 0,
-	// "smoothScalingDown": 0,
-	// "bitmapSmoothScaling": 0,
-	// "bitmapSmoothScalingDown": 0,
-	// "xbrzScalingFactor": 1.0,
-	// "bicubicSharpness": 100,
-	// Needs one of the two Down options above set to 1 to do anything:
-	// "smoothScalingMipmaps": false,
-
-	// Scale up by whole pixels first, so every game pixel stays the same size.
-	// "integerScalingActive": false,
-
-	// Replace the game's art with your own from a Hires/ folder beside it. All
-	// three factors have to rise with it or nothing changes.
-	// "enableHires": false,
-	// "textureScalingFactor": 1.0,
-	// "framebufferScalingFactor": 1.0,
-	// "atlasScalingFactor": 1.0,
-
-	// Frame pacing. syncToRefreshrate reports the real rate back to the game, so
-	// timers stay right; fixedFramerate does not.
-	// "vsync": false,
-	// "syncToRefreshrate": false,
-	// "fixedFramerate": 0,
-	// "frameSkip": false,
-
-	// YJIT compiles hot Ruby. Upstream calls it experimental, but mkxp-z bundles
-	// Ruby 3.1, so it is available - worth trying on script-heavy games.
-	// "YJITEnable": false,
-
-	// Only if text or the tileset fails to draw: a driver workaround that costs
-	// speed the rest of the time.
-	// "subImageFix": false
-}
-EOF
-	echo "Wrote $game/mkxp.json"
-	pre=$(mkxp_preload_dir || true)
-	if [ -z "$pre" ]; then
-		echo "Note: mkxp-z's own scripts/preload was not found next to the mkxp-z command."
-		echo "      Set RPGM_MKXPZ_PRELOAD to it, or Win32API calls will raise."
-	else
-		echo "Using mkxp-z's wrappers from $pre"
-	fi
-}
-
-if [ -n "$setup" ]; then
-	[ "$engine" = rgss ] || die "--setup applies to RPG Maker XP/VX/VX Ace games; this is ${engine:-not recognized}"
-	rgss_setup
-	exit 0
-fi
-
-if [ -n "$info" ]; then
+case $mode in
+info)
 	echo "rpgm:    $VERSION"
 	echo "game:    $game"
 	echo "engine:  ${engine:-not recognized}"
-	[ -n "$engine" ] || { unknown_report; exit 0; }
 	core=$(find_ci www/js/rpg_core.js)
 	[ -n "$core" ] || core=$(find_ci js/rpg_core.js)
 	[ -n "$core" ] || core=$(find_ci js/rmmz_core.js)
-	[ -z "$core" ] || sed -nE "s/^Utils\.RPGMAKER_(NAME|VERSION) *= *.([^\"']*).*/\1 \2/p" "$game/$core" |
-		sed 's/^NAME /rpgmaker: /; s/^VERSION /version: /'
+	[ -z "$core" ] || sed -n "s/^Utils\.RPGMAKER_VERSION *= *.\([0-9.]*\).*/version: \1/p" "$game/$core"
 	case $engine in
-	mv | mz | nwjs* | electron-app)
-		if have electron; then echo "runtime: electron ($(command -v electron))"
-		else echo "runtime: electron NOT INSTALLED (apk add electron, Alpine edge)"
-		fi ;;
+	'') ;;
+	rgss)
+		if have mkxp-z; then echo "runtime: $(command -v mkxp-z)"; else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"; fi
+		if [ -n "$(find_ci mkxp.json)" ]; then echo "config:  $(find_ci mkxp.json)"; else echo "config:  none (rpgm --setup writes one)"; fi ;;
+	*)
+		if have electron; then echo "runtime: $(command -v electron)"; else echo "runtime: electron not installed (apk add electron)"; fi ;;
 	esac
-	case $engine in mv | mz) plugin_report ;; rgss) rgss_report ;; esac
-	case $engine in mv | mz | nwjs*) ;; *) exit 0 ;; esac
-	dups=$(cd "$game" && find . -type f | tr '[:upper:]' '[:lower:]' | sort | uniq -d)
-	if [ -n "$dups" ]; then
-		echo "shadowed: these paths exist in more than one letter case, so a mod copy of them is"
-		echo "          ignored (rename it to match the original exactly):"
-		printf '%s\n' "$dups" | head -20 | sed 's|^\./|          |'
-		[ "$(printf '%s\n' "$dups" | wc -l)" -le 20 ] || echo "          ... and more"
+	exit 0 ;;
+setup)
+	[ "$engine" = rgss ] || die "--setup is for RPG Maker XP/VX/VX Ace games; this is ${engine:-not recognized}"
+	keys="\"preloadScript\": [\"$here/rgss/all.rb\"],
+	\"enableReset\": false"
+	if [ -n "$(find_ci mkxp.json)" ]; then
+		printf '%s already exists; add these keys to it:\n\t%s\n' "$game/$(find_ci mkxp.json)" "$keys"
+		exit 0
 	fi
-	exit 0
-fi
+	printf '{\n\t%s\n}\n' "$keys" >"$game/mkxp.json" || die "cannot write $game/mkxp.json"
+	echo "Wrote $game/mkxp.json"
+	exit 0 ;;
+esac
 
-flags=
 case ${RPGM_PLATFORM:-} in
 wayland | x11) flags="--ozone-platform=$RPGM_PLATFORM" ;;
 '') if [ -n "${WAYLAND_DISPLAY:-}" ]; then flags=--ozone-platform=wayland; else flags=--ozone-platform=x11; fi ;;
@@ -435,46 +105,38 @@ esac
 # shellcheck disable=SC3045
 ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
 
-run_nwjs() {
-	have electron || die "electron is not installed (apk add electron, from Alpine edge's testing repository)"
-	export RPGM_GAME="$1" RPGM_TEST="$test"
+run_electron() {
+	have electron || die "electron is not installed (apk add electron, Alpine edge testing)"
 	# shellcheck disable=SC2086
-	exec electron $flags "$here"
+	exec electron $flags "$@"
 }
 
 case $engine in
-mv | mz | nwjs) run_nwjs "$game" ;;
+mv | mz | nwjs)
+	export RPGM_GAME="$game" RPGM_TEST="$test"
+	run_electron "$here" ;;
 nwjs-zip)
 	have unzip || die "unzip is required (apk add unzip)"
 	zip="$game/$(find_ci package.nw)"
 	dir="${XDG_DATA_HOME:-$HOME/.local/share}/rpgm/unpacked/$(printf %s "$game" | md5sum | cut -c1-12)"
-	stamp="$dir/.rpgm-unpacked"
-	if [ ! -f "$stamp" ] || [ -n "$(find "$zip" -newer "$stamp")" ]; then
+	if [ ! -f "$dir/.rpgm-unpacked" ] || [ -n "$(find "$zip" -newer "$dir/.rpgm-unpacked")" ]; then
 		mkdir -p "$dir" || die "cannot create $dir"
 		unzip -qo "$zip" -d "$dir" || die "cannot unpack $zip"
-		touch "$stamp"
+		touch "$dir/.rpgm-unpacked"
 	fi
-	run_nwjs "$dir" ;;
+	export RPGM_GAME="$dir" RPGM_TEST="$test"
+	run_electron "$here" ;;
 electron-app)
-	have electron || die "this is an Electron game; install electron (Alpine edge, testing)"
 	app="$game/$(find_ci resources/app.asar)"
 	[ -f "$app" ] || app="$game/$(find_ci resources/app)"
-	# shellcheck disable=SC2086
-	exec electron $flags "$app" ;;
+	run_electron "$app" ;;
 rgss)
-	have mkxp-z || die "RPG Maker XP/VX/VX Ace game; needs mkxp-z (https://github.com/mkxp-z/mkxp-z)"
-	cd "$game" || die "cannot enter $game"
-	export SRCDIR="$game"
+	have mkxp-z || die "XP/VX/VX Ace games need mkxp-z (./build-mkxp-z.sh builds it)"
+	[ -n "$(find_ci mkxp.json)" ] || echo "rpgm: no mkxp.json; 'rpgm --setup' writes one that loads the shims" >&2
+	cd "$game"
 	pre=$(mkxp_preload_dir || true)
 	[ -z "$pre" ] || export RPGM_MKXPZ_PRELOAD="$pre"
-	export RPGM_SHIM_DIR="$here/rgss"
-	if [ -z "$(find_ci 'mkxp.json')" ]; then
-		echo "rpgm: no mkxp.json; run 'rpgm --setup' to load the compatibility shims" >&2
-	fi
-	[ -z "$test" ] || exec mkxp-z test
-	exec mkxp-z ;;
-*)
-	printf 'rpgm: no supported game found in %s\n' "$game" >&2
-	unknown_report >&2
-	exit 1 ;;
+	export SRCDIR="$game" RPGM_SHIM_DIR="$here/rgss"
+	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
+*) die "no RPG Maker game found in $game" ;;
 esac

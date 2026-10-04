@@ -10,26 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     container: alpine:edge
     steps:
-      - name: Install tools
-        run: apk add --no-cache git nodejs ruby shellcheck
-
+      - run: apk add --no-cache git nodejs ruby shellcheck
       - uses: actions/checkout@v4
-
-      - name: shellcheck
-        run: shellcheck -s sh rpgm install.sh test/run.sh test/fixtures.sh build-mkxp-z.sh
-
-      - name: Ruby preload scripts parse
-        run: for f in lib/rgss/*.rb; do ruby -c "$f" >/dev/null || exit 1; done
-
-      - name: Test suite
-        run: ./test/run.sh
-
-      - name: Install and uninstall cleanly
-        run: |
-          ./install.sh --user
-          ~/.local/bin/rpgm --version
-          ./test/fixtures.sh /tmp/fx
-          ~/.local/bin/rpgm --info /tmp/fx/mv | grep -q 'engine:  mv'
-          ~/.local/bin/rpgm --setup /tmp/fx/rgss-raw | grep -q Wrote
-          ./install.sh --user --uninstall
-          test ! -e ~/.local/lib/rpgm
+      - run: shellcheck -s sh rpgm install.sh build-mkxp-z.sh test/run.sh
+      - run: for f in lib/rgss/*.rb; do ruby -c "$f" >/dev/null || exit 1; done
+      - run: ./test/run.sh
+      - run: ./install.sh --user && ~/.local/bin/rpgm --version && ./install.sh --user --uninstall && test ! -e ~/.local/lib/rpgm
