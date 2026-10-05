@@ -50,7 +50,6 @@ Saves stay in the game folder; everything else is in `~/.local/share/rpgm/`.
 ## Limits
 
 - No Windows DLLs or Steam features.
-- Very old Enigma Virtual Box formats.
 - Games can read all your files; run only trusted ones.
 
 ## Tests

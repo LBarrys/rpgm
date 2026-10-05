@@ -18,12 +18,17 @@ function pack(data) {
   return Buffer.from(out);
 }
 
-function evb(root) {
+function evb(root, legacy = false) {
   const table = [], blobs = [];
   const u32 = v => { const b = Buffer.alloc(4); b.writeUInt32LE(v); return b; };
+  const entry = (count, name, type, rest) => {
+    const body = Buffer.concat([Buffer.from(name + '\0', 'utf16le'), Buffer.from([type]), rest]);
+    return Buffer.concat([u32(12 + body.length), Buffer.alloc(8), u32(count), body]);
+  };
   const node = n => {
     const kids = n.children || [];
-    table.push(u32(0), Buffer.alloc(8), u32(kids.length), Buffer.from(n.name + '\0', 'utf16le'), Buffer.from([kids.length || !n.data ? 3 : 2]));
+    const type = kids.length || !n.data ? 3 : 2;
+    if (!legacy) table.push(u32(0), Buffer.alloc(8), u32(kids.length), Buffer.from(n.name + '\0', 'utf16le'), Buffer.from([type]));
     if (n.data) {
       let blob = n.data;
       if (n.chunks) {
@@ -33,21 +38,23 @@ function evb(root) {
         const block = 8 + 4 * index.length;
         blob = Buffer.concat([u32(block), u32(0), ...index, ...chunks]);
       }
-      const opt = Buffer.alloc(53);
+      const opt = Buffer.alloc(legacy ? 49 : 53);
       opt.writeUInt32LE(n.data.length, 2);
-      opt.writeUInt32LE(blob.length, 49);
-      table.push(opt);
-      blobs.push(blob);
+      opt.writeUInt32LE(blob.length, legacy ? 41 : 49);
+      if (legacy) table.push(entry(0, n.name, 2, Buffer.concat([Buffer.alloc(3), opt])), blob);
+      else { table.push(opt); blobs.push(blob); }
     } else {
-      table.push(Buffer.alloc(25));
+      table.push(legacy ? entry(kids.length, n.name, 3, Buffer.alloc(25)) : Buffer.alloc(25));
       kids.forEach(node);
     }
   };
+  if (legacy) table.push(entry(1, '', 0, Buffer.alloc(25)));
   node(root);
   const t = Buffer.concat(table);
   const pe = Buffer.alloc(512);
   pe.write('MZ', 0);
   pe.write('.enigma1', 400);
+  if (legacy) return Buffer.concat([pe, Buffer.from('EVB\0'), Buffer.alloc(60), t]);
   const main = Buffer.concat([u32(t.length + 11), Buffer.alloc(8), u32(1)]);
   return Buffer.concat([pe, Buffer.from('EVB\0'), Buffer.alloc(60), main.subarray(0, 15), t, ...blobs]);
 }
@@ -134,6 +141,18 @@ if (require.main === module) (async () => {
   is('a nested compressed file is extracted', read('www/js/quick.txt'), quick.toString());
   is('UTF-16 names survive', read('www/セーブ.txt'), 'save');
   is('an empty file is extracted', read('www/empty.txt'), '');
+
+  fs.writeFileSync(path.join(tmp, 'Old.exe'), evb(game, true));
+  try { unpack(path.join(tmp, 'Old.exe'), path.join(tmp, 'old')); } catch (e) { console.log('FAIL old layout threw: ' + e.message); failed++; }
+  const old = f => { try { return fs.readFileSync(path.join(tmp, 'old', f), 'utf8'); } catch { return null; } };
+  is('old layout: a stored file is extracted', old('package.json'), '{"main":"www/index.html"}');
+  is('old layout: compressed files are extracted', old('www/index.html') + old('www/js/quick.txt'), page.toString() + quick.toString());
+  is('old layout: UTF-16 names and empty files survive', old('www/セーブ.txt') + old('www/empty.txt'), 'save');
+  const cut = evb(game, true);
+  fs.writeFileSync(path.join(tmp, 'Cut.exe'), cut.subarray(0, cut.length - 40));
+  let cutMsg = '';
+  try { unpack(path.join(tmp, 'Cut.exe'), path.join(tmp, 'cut')); } catch (e) { cutMsg = e.message; }
+  is('a truncated archive is refused before anything is written', cutMsg !== '' && !fs.existsSync(path.join(tmp, 'cut')), true);
 
   const evil = { name: '%DEFAULT FOLDER%', children: [{ name: '..', children: [{ name: 'x', data: Buffer.from('x') }] }] };
   fs.writeFileSync(path.join(tmp, 'Evil.exe'), evb(evil));
