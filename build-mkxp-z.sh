@@ -13,7 +13,6 @@ ref=${MKXPZ_REF:-dev}
 
 as_root='' virtual='' src=''
 cleanup() {
-	cd /
 	if [ -n "$src" ]; then echo "==> removing the build folder"; rm -rf "${src:?}"; fi
 	if [ -n "$virtual" ]; then echo "==> removing build dependencies"; $as_root apk del -q "$virtual"; fi
 }
@@ -49,15 +48,6 @@ sed -i -e "s/'use_video_x11': is_unix ? 'enabled' : 'disabled'/'use_video_x11': 
 if ! grep -q "'use_video_x11': 'disabled'" src/meson.build || ! grep -q "'use_video_kmsdrm': 'disabled'" src/meson.build; then
 	die "mkxp-z's src/meson.build changed; cannot build SDL for Wayland only"
 fi
-sed -i '/^#  define MKXPZ_CHECK_FOR_WAYLAND_SUPPORT$/d' src/main.cpp
-sed -i -E '/-DMKXPZ_(X11|XCURSOR|XEXT|XFIXES|XI|XRANDR)_SONAME=/d' src/meson.build
-awk 'skip && /^    endif$/ { skip = 0; next } skip { next } /^    x11 = dependency\(.x11.,/ { skip = 1; next } { print }' \
-	src/meson.build >src/meson.build.new
-mv src/meson.build.new src/meson.build
-if grep -q 'define MKXPZ_CHECK_FOR_WAYLAND_SUPPORT' src/main.cpp ||
-	grep -q -E "MKXPZ_(X11|XCURSOR|XEXT|XFIXES|XI|XRANDR)_SONAME|subproject\('libx11'|dependency\('x11'" src/meson.build; then
-	die "mkxp-z's build files changed; cannot build it without X11"
-fi
 
 echo "==> building mkxp-z and its bundled libraries; this takes a long while"
 meson setup --prefix "$src/stage" --buildtype release -Dstrip=true -Db_lto=true -Dangle=disabled build
@@ -90,7 +80,7 @@ chmod 755 "$prefix/bin/mkxp-z"
 cat <<EOF
 
 Installed to $prefix/lib/mkxp-z (command: $prefix/bin/mkxp-z), for Wayland only:
-no X11 libraries are built, and drawing goes through Mesa's OpenGL over EGL.
+SDL is built without X11 and drawing goes through Mesa's OpenGL over EGL.
 
 Run a game:
   cd /path/to/game && mkxp-z          # or: rpgm /path/to/game
