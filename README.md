@@ -16,7 +16,8 @@ apk add electron       # Alpine edge, testing repository
 
 Nothing else is needed: games shipped as `package.nw`, or packed inside `Game.exe` with Enigma
 Virtual Box, are unpacked on first run by `lib/evb.js`, which runs on `electron`. Zip file names
-are read as UTF-8, or as Shift-JIS when an older Japanese tool wrote them.
+are read as UTF-8, or as Shift-JIS when an older Japanese tool wrote them; decoding Shift-JIS needs
+ICU's full data, so for such a game rpgm may ask for `apk add icu-data-full`.
 
 ## Use
 

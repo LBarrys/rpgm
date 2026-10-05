@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     container: alpine:edge
     steps:
-      - run: apk add --no-cache git nodejs ruby shellcheck
+      - run: apk add --no-cache git nodejs icu-data-full ruby shellcheck
       - uses: actions/checkout@v4
       - run: shellcheck -s sh rpgm install.sh build-mkxp-z.sh test/run.sh
       - run: for f in lib/rgss/*.rb; do ruby -c "$f" >/dev/null || exit 1; done
