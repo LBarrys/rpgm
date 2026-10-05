@@ -47,11 +47,6 @@ Saves stay in the game folder; everything else is in `~/.local/share/rpgm/`.
 - `\` save paths, `%APPDATA%`.
 - XP/VX/VX Ace: Ruby 1.8, Win32API, `.ini` files, known broken plugins.
 
-## Limits
-
-- No Windows DLLs or Steam features.
-- Games can read all your files; run only trusted ones.
-
 ## Tests
 
 `./test/run.sh`; node and ruby tests run if installed.
