@@ -15,13 +15,17 @@ check() {
 }
 run() { out=$(sh ./rpgm "$@" 2>&1); }
 
-mkdir -p "$fx/mv/www/js" "$fx/mz/js" "$fx/zip" "$fx/eapp/resources/app" "$fx/xp/Data" "$fx/vx/data" "$fx/none" "$fx/evb" "$fx/exe"
+mkdir -p "$fx/mv/www/js" "$fx/mz/js" "$fx/zip" "$fx/eapp/resources/app" "$fx/xp/Data" "$fx/vx/data" "$fx/none" "$fx/evb" "$fx/exe" "$fx/xpa" "$fx/vxa" "$fx/2k"
 echo "Utils.RPGMAKER_VERSION = \"1.6.1\";" >"$fx/mv/www/js/rpg_core.js"
 echo "Utils.RPGMAKER_VERSION = \"1.8.0\";" >"$fx/mz/js/rmmz_core.js"
 : >"$fx/zip/package.nw"
 echo '{}' >"$fx/eapp/resources/app/package.json"
 : >"$fx/xp/Data/Scripts.rxdata"
 : >"$fx/vx/data/scripts.RVDATA2"
+printf '[Game]\r\nRTP1=Standard\r\nRTP2=\r\nScripts=Data\\Scripts.rxdata\r\n' >"$fx/xp/Game.ini"
+printf '[Game]\r\nRTP=RPGVX\r\n' >"$fx/xpa/Game.ini"; : >"$fx/xpa/Game.rgssad"
+printf '[Game]\r\nRTP=RPGVX\r\n' >"$fx/vxa/Game.ini"; : >"$fx/vxa/GAME.RGSS2A"
+: >"$fx/2k/RPG_RT.ldb"; : >"$fx/2k/RPG_RT.LMT"
 echo '{}' >"$fx/vx/mkxp.json"
 : >"$fx/mv/Game.exe"
 printf 'MZ\000\000.enig\000ma1' >"$fx/exe/Game.exe"
@@ -34,16 +38,15 @@ run --info "$fx/mv/Game.exe"; check 'a Game.exe path means its folder' 'engine: 
 run --info "$fx/mz"; check 'MZ is detected' 'engine:  mz'; check 'MZ version is read' 'version: 1.8.0'
 run --info "$fx/zip"; check 'package.nw is detected' 'engine:  nwjs-zip'
 run --info "$fx/eapp"; check 'Electron games are detected' 'engine:  electron-app'
-run --info "$fx/xp"; check 'XP is detected' 'engine:  rgss'; check 'a missing mkxp.json is reported' 'config:  none'
-run --info "$fx/vx"; check 'detection ignores letter case' 'engine:  rgss'; check 'an mkxp.json is found' 'config:  mkxp.json'
+run --info "$fx/xp"; check 'XP is detected' 'engine:  rgss'; check 'rpgm writes the config' 'config:  written by rpgm'
+check 'the RTP the game names is reported' 'rtp:     Standard, not installed'
+run --info "$fx/vx"; check 'detection ignores letter case' 'engine:  rgss'; check "a game's own mkxp.json is found" 'config:  mkxp.json'
+run --info "$fx/vxa"; check 'an archive-only game is detected' 'engine:  rgss'
+run --info "$fx/2k"; check 'RPG Maker 2000/2003 is detected' 'engine:  rm2k'
 run --info "$fx/none"; check 'an empty folder is not a game' 'engine:  not recognized'
 run --info "$fx/evb"; check 'an Enigma-packed exe is detected' 'engine:  evb'; check 'and named' 'GAME.EXE (Enigma'
 run --info "$fx/exe"; check 'a plain exe is not taken for Enigma' 'engine:  not recognized'
 run "$fx/none"; check 'running a non-game fails' 'no RPG Maker game found'
-run --setup "$fx/xp"; check '--setup writes mkxp.json' 'Wrote'
-out=$(cat "$fx/xp/mkxp.json"); check '--setup loads the shims' 'rgss/all.rb"]'; check '--setup turns F12 off' '"enableReset": false'
-run --setup "$fx/vx"; check '--setup leaves an existing config alone' 'already exists'
-run --setup "$fx/mv"; check '--setup refuses other engines' 'is for RPG Maker XP'
 run --bogus; check 'unknown options are refused' 'unknown option'
 
 echo "== lib"
@@ -61,7 +64,11 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR wasd=$RPGM_WASD appdata=$LOCALAPPDATA args=$*"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER"\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
+	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER pwd=$PWD"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
+	# shellcheck disable=SC2016
+	printf '#!/bin/sh\necho "easyrpg driver=$SDL_VIDEODRIVER rtp=${RPG2K_RTP_PATH:-} args=$*"\n' >"$fx/bin/easyrpg-player" && chmod +x "$fx/bin/easyrpg-player"
+	mkdir -p "$fx/lib/mkxp-z/scripts/preload" "$fx/lib/mkxp-z/stdlib" "$fx/data/rpgm/rtp/Standard" "$fx/data/rpgm/rtp/RPG2000"
+	: >"$fx/lib/mkxp-z/scripts/preload/win32_wrap.rb"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'an Enigma-packed game is unpacked and run' "electron got $fx/data/rpgm/unpacked/"
 	check 'Electron is started on Wayland' 'args=--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
@@ -80,8 +87,22 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'Windows folders point into rpgm/windows' "appdata=$fx/data/rpgm/windows/AppData/Local"
 	out=$(ls -d "$fx/data/rpgm/windows/AppData/Roaming"); check 'and exist' 'AppData/Roaming'
 	out=$(PATH="$fx/bin:$PATH" LOCALAPPDATA=/mine sh ./rpgm "$fx/packed" 2>&1); check 'a set LOCALAPPDATA is kept' 'appdata=/mine'
-	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/xp" 2>/dev/null); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
-	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/vx" 2>/dev/null); check 'VX Ace runs as RGSS3' 'rgss=3'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/xp" 2>&1); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
+	check 'mkxp-z starts from the config rpgm wrote' "pwd=$fx/data/rpgm/mkxp/"
+	check 'which points at the game' "\"gameFolder\": \"$fx/xp\""
+	check 'loads the shims' 'rgss/all.rb"]'; check 'turns F12 reset off' '"enableReset": false'
+	check 'adds the installed RTP the game names' "\"RTP\": [\"$fx/data/rpgm/rtp/Standard\"]"
+	check "and mkxp-z's Ruby standard library" "\"rubyLoadpath\": [\"$fx/lib/mkxp-z/stdlib\"]"
+	out=$(ls "$fx/xp"); check 'the game folder is left untouched' 'Data'; case $out in *mkxp.json*) fail=$((fail + 1)); echo "FAIL rpgm wrote into the game folder" ;; esac
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vx" 2>&1); check 'VX Ace runs as RGSS3' 'rgss=3'
+	check "a game's own mkxp.json is used from the game folder" "pwd=$fx/vx"; check 'with a hint to load the shims' 'has its own mkxp.json'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/xpa" 2>&1); check 'an XP archive-only game runs as RGSS1' 'rgss=1'
+	check 'a missing RTP is pointed out' "extract it to $fx/data/rpgm/rtp/RPGVX"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --test "$fx/2k" 2>&1)
+	check 'RPG Maker 2000/2003 runs on EasyRPG, on Wayland' 'easyrpg driver=wayland'
+	check 'with the game folder and playtest mode' "args=--project-path $fx/2k --test-play"
+	check 'and the installed RTP' "rtp=$fx/data/rpgm/rtp/RPG2000"
 	mkdir -p "$fx/mz/save"
 	node -e "process.stdout.write(require('zlib').deflateSync('{\"party\":{\"_gold\":100}}').toString('latin1'))" >"$fx/mz/save/file1.rmmzsave"
 	out=$(EDITOR=true sh ./rpgm --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check '--edit-save writes nothing when nothing changed' 'Unchanged'

@@ -4,7 +4,8 @@ Run Windows releases of RPG Maker games natively on Alpine Linux, without Wine.
 
 A small rewrite of [rpgmakermlinux-cicpoffs](https://github.com/bakustarver/rpgmakermlinux-cicpoffs)
 for musl, with no bundled binaries. MV and MZ run on Alpine's own `electron`; XP, VX and VX Ace run
-on [mkxp-z](https://github.com/mkxp-z/mkxp-z). Wayland only: there is no X11 or Xwayland path.
+on [mkxp-z](https://github.com/mkxp-z/mkxp-z); 2000 and 2003 run on
+[EasyRPG Player](https://easyrpg.org/player/). Wayland only: there is no X11 or Xwayland path.
 
 ## Install
 
@@ -12,6 +13,7 @@ on [mkxp-z](https://github.com/mkxp-z/mkxp-z). Wayland only: there is no X11 or 
 apk add electron       # Alpine edge, testing repository
 ./install.sh           # into /usr/local, as root; --user for ~/.local, --uninstall to remove
 ./build-mkxp-z.sh      # only for XP/VX/VX Ace: Alpine does not package mkxp-z
+apk add easyrpg-player # only for 2000/2003
 ```
 
 `build-mkxp-z.sh` installs the build dependencies it is missing (through `doas` or `sudo` when not
@@ -24,6 +26,12 @@ Virtual Box, are unpacked on first run by `lib/evb.js`, which runs on `electron`
 are read as UTF-8, or as Shift-JIS when an older Japanese tool wrote them; decoding Shift-JIS needs
 ICU's full data, so for such a game rpgm may ask for `apk add icu-data-full`.
 
+Some 2000, 2003, XP, VX and VX Ace games rely on the RPG Maker Run Time Package (RTP) for stock
+graphics and sounds instead of shipping them. Extract the RTP installer from
+[rpgmakerweb.com](https://www.rpgmakerweb.com/run-time-package) (`innoextract` works) and put the
+folder holding `Graphics` and `Audio` in `~/.local/share/rpgm/rtp/` as `RPG2000`, `RPG2003`,
+`Standard` (XP), `RPGVX` or `RPGVXAce`. `rpgm --info` shows which one a game names.
+
 ## Use
 
 ```sh
@@ -32,8 +40,7 @@ rpgm --test GAME              # playtest: F9 debug menu, F12 devtools
 rpgm --editor GAME            # MV/MZ: F8 opens an in-game editor
 rpgm --wasd GAME              # MV/MZ: WASD moves, E confirms, Q cancels
 rpgm --edit-save SAVE_FILE    # MV/MZ: edit a save as JSON in $EDITOR
-rpgm --info GAME              # engine, version and runtime found
-rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the shims
+rpgm --info GAME              # engine, version, runtime and RTP found
 ```
 
 | Game | Runs on |
@@ -41,12 +48,18 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 | RPG Maker MV, MZ, other NW.js games (`package.json`, `package.nw`) | `electron` + rpgm's NW.js shim |
 | Electron games (`resources/app`, `app.asar`) | `electron` |
 | RPG Maker XP, VX, VX Ace | `mkxp-z` + the shims in `lib/rgss/` |
+| RPG Maker 2000, 2003 (`RPG_RT.ldb`) | `easyrpg-player` |
 | Any of these packed in an Enigma Virtual Box `.exe` | unpacked to `~/.local/share/rpgm/unpacked/`, then as above |
 
 ## How it works
 
 - `rpgm` (POSIX sh) detects the engine and starts the runtime on Wayland: Electron with
-  `--ozone-platform=wayland` and client-side window decorations, mkxp-z with `SDL_VIDEODRIVER=wayland`.
+  `--ozone-platform=wayland` and client-side window decorations, mkxp-z and EasyRPG with
+  `SDL_VIDEODRIVER=wayland`.
+- For XP, VX and VX Ace, rpgm writes mkxp-z's `mkxp.json` to `~/.local/share/rpgm/mkxp/`, not the
+  game folder: it points mkxp-z at the game and adds the shims, the RTP and mkxp-z's Ruby standard
+  library (Pokemon Essentials needs it). A game that ships its own `mkxp.json` keeps it, and rpgm
+  prints the two keys to add for its fixes.
 - `lib/electron-preload.js` provides the NW.js APIs games use (`nw.Window`, `nw.App`, `nw.gui`,
   `process.mainModule`, `window.prompt` via zenity/kdialog/yad) with Node.js in the page.
 - `lib/ci.js` resolves file names case-insensitively, as Windows does; `lib/serve.js` serves game

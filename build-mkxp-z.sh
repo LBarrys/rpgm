@@ -86,8 +86,8 @@ Run a game:
   cd /path/to/game && mkxp-z          # or: rpgm /path/to/game
   mkxp-z test                         # playtest mode
 
-If a game needs the Ruby standard library (Pokemon Essentials games do), add this to
-that game's mkxp.json - mkxp-z reads it from the game folder, not from the install:
+rpgm passes mkxp-z its Ruby standard library itself. When running mkxp-z directly, a
+game that needs it (Pokemon Essentials games do) needs this in its own mkxp.json:
   "rubyLoadpath": ["$prefix/lib/mkxp-z/stdlib"]
 
 If it starts with a modal "Could not detect an available audio device" and goes no
