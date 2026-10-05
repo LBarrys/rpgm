@@ -16,9 +16,8 @@ apk add electron       # Alpine edge, testing repository
 
 `build-mkxp-z.sh` installs the build dependencies it is missing (through `doas` or `sudo` when not
 run as root), builds in a temporary folder, and removes both when it ends, so only mkxp-z itself is
-left behind. It is built for Wayland only: SDL has no X11 or KMS/DRM drivers, the bundled X11
-libraries are not built at all, and mkxp-z's X11 startup check is compiled out. It draws with
-Mesa's OpenGL over EGL; the ANGLE translation layer is left out.
+left behind. Its SDL is built for Wayland only, without X11 or KMS/DRM, and it draws with Mesa's
+OpenGL over EGL; the ANGLE translation layer is left out.
 
 Nothing else is needed: games shipped as `package.nw`, or packed inside `Game.exe` with Enigma
 Virtual Box, are unpacked on first run by `lib/evb.js`, which runs on `electron`. Zip file names
