@@ -22,6 +22,8 @@ Virtual Box are unpacked on first run by `lib/evb.js`, which needs nothing beyon
 ```sh
 rpgm [GAME_DIR | Game.exe]    # default: the current directory
 rpgm --test GAME              # playtest: F9 debug menu, F12 devtools
+rpgm --editor GAME            # MV/MZ: F8 opens an in-game editor
+rpgm --edit-save SAVE_FILE    # MV/MZ: edit a save as JSON in $EDITOR
 rpgm --info GAME              # engine, version and runtime found
 rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the shims
 ```
@@ -43,6 +45,12 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
   works as it did under NW.js.
 - Steam's `greenworks` is replaced by a stand-in that reports Steam as unavailable, so games that
   load it keep running without achievements or cloud saves.
+- `--editor` adds a panel (`lib/editor.js`) for gold, items, weapons, armor, actors (level, HP, MP,
+  stats), switches and variables. It changes the running game through the game's own functions, so
+  plugins stay consistent; nothing is written until you save in-game.
+- `--edit-save` (`lib/savejson.js`) is for saves the game cannot load: it decodes MZ saves with
+  zlib and MV saves with the game's own `lz-string.js`, opens the JSON in `$EDITOR` (default `vi`),
+  and writes it back in the same format, keeping the first original as `.bak`.
 - The game runs from the folder holding `index.html`, so mod loaders find `www/mods`. Saves stay in
   the game's `save/` folder, compatible with Windows; browser storage is in `~/.local/share/rpgm/`.
 - `lib/rgss/all.rb` loads mkxp-z's `win32_wrap.rb` and `kgl2_wrap.rb`, then shims for what Windows
@@ -65,7 +73,8 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 
 ## Credits and license
 
-Based on rpgmakermlinux-cicpoffs by bakustarver. mkxp-z by Roza and contributors runs the RGSS
+Based on rpgmakermlinux-cicpoffs by bakustarver; the editors were inspired by
+[rmse](https://github.com/nathan-b/rmse) by Nathan Baker. mkxp-z by Roza and contributors runs the RGSS
 games; its `win32_wrap.rb` and `kgl2_wrap.rb` (Ancurio, Splendide Imaginarius, white-axe) are
 extended by the CC0 shims in `lib/rgss/`. `lib/evb.js` is ported from evbunpack by mos9527
 (Apache-2.0) and aplib by Sandor Nemes (GPL-3.0). Most of the code was written by Claude

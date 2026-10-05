@@ -1,12 +1,18 @@
 #!/bin/sh
 set -eu
 
-VERSION=0.3.0
+VERSION=0.4.0
 self=$(readlink -f "$0")
 here=$(dirname "$self")/lib
 
 die() { printf 'rpgm: %s\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
+node_js() {
+	if have node; then node "$@"
+	elif have electron; then ELECTRON_RUN_AS_NODE=1 electron "$@"
+	else die "this needs electron (apk add electron) or node"
+	fi
+}
 find_ci() { (cd "$game" && find . -maxdepth 3 -ipath "./$1" 2>/dev/null | head -n 1 | cut -c3-); }
 has() { [ -n "$(find_ci "$1")" ]; }
 evb_exe() {
@@ -18,13 +24,16 @@ evb_exe() {
 
 usage() {
 	cat <<EOF
-Usage: rpgm [-t | -i | -s] [GAME_DIR | GAME.exe]
+Usage: rpgm [-t | -e | -i | -s] [GAME_DIR | GAME.exe]
+       rpgm --edit-save SAVE_FILE
 
 Runs a Windows RPG Maker game natively (default: the current directory).
 
   -t, --test      playtest mode (F9 debug menu, F12 devtools)
+  -e, --editor    MV/MZ: F8 opens an editor for gold, items, actors, switches
   -i, --info      show what was detected
   -s, --setup     XP/VX/VX Ace: write an mkxp.json that loads the shims
+  --edit-save     MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
   -h, --help      show this help
   -V, --version   show the version
 
@@ -33,12 +42,14 @@ out), RPGM_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found).
 EOF
 }
 
-mode=run test=
+mode=run test='' editor=''
 while [ $# -gt 0 ]; do
 	case $1 in
 	-t | --test) test=1 ;;
+	-e | --editor) editor=1 ;;
 	-i | --info) mode=info ;;
 	-s | --setup) mode=setup ;;
+	--edit-save) mode=edit-save ;;
 	-h | --help) usage; exit 0 ;;
 	-V | --version) echo "rpgm $VERSION"; exit 0 ;;
 	--) shift; break ;;
@@ -50,6 +61,23 @@ done
 [ $# -le 1 ] || die "expected one game path (see --help)"
 target=${1:-.}
 [ -e "$target" ] || die "no such file or directory: $target"
+
+if [ "$mode" = edit-save ]; then
+	[ -f "$target" ] || die "--edit-save takes a save file, e.g. www/save/file1.rpgsave"
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' EXIT INT TERM
+	node_js "$here/savejson.js" decode "$target" "$tmp/save.json" || exit 1
+	cp "$tmp/save.json" "$tmp/before.json"
+	# shellcheck disable=SC2086
+	${EDITOR:-vi} "$tmp/save.json"
+	if cmp -s "$tmp/save.json" "$tmp/before.json"; then echo "Unchanged; nothing written."; exit 0; fi
+	if ! node_js "$here/savejson.js" encode "$tmp/save.json" "$target"; then
+		cp "$tmp/save.json" "$target.json"
+		die "not written; your edit is kept in $target.json"
+	fi
+	echo "Wrote $target (the original is kept as $target.bak)"
+	exit 0
+fi
 [ -d "$target" ] || target=$(dirname "$target")
 game=$(cd "$target" && pwd -P)
 unpacked="${XDG_DATA_HOME:-$HOME/.local/share}/rpgm/unpacked/$(printf %s "$game" | md5sum | cut -c1-12)"
@@ -123,7 +151,7 @@ run_electron() {
 
 case $engine in
 mv | mz | nwjs)
-	export RPGM_GAME="$game" RPGM_TEST="$test"
+	export RPGM_GAME="$game" RPGM_TEST="$test" RPGM_EDITOR="$editor"
 	run_electron "$here" ;;
 nwjs-zip | evb)
 	[ "$engine" = evb ] || packed="$game/$(find_ci package.nw)"
@@ -132,14 +160,11 @@ nwjs-zip | evb)
 		if [ "$engine" = nwjs-zip ]; then
 			have unzip || die "unzip is required (apk add unzip)"
 			unzip -qo "$packed" -d "$unpacked" || die "cannot unpack $packed"
-		elif have node; then node "$here/evb.js" "$packed" "$unpacked" || exit 1
-		else
-			have electron || die "unpacking needs electron (apk add electron) or node"
-			ELECTRON_RUN_AS_NODE=1 electron "$here/evb.js" "$packed" "$unpacked" || exit 1
+		else node_js "$here/evb.js" "$packed" "$unpacked" || exit 1
 		fi
 		touch "$unpacked/.rpgm-unpacked"
 	fi
-	exec sh "$self" ${test:+--test} "$unpacked" ;;
+	exec sh "$self" ${test:+--test} ${editor:+--editor} "$unpacked" ;;
 electron-app)
 	app="$game/$(find_ci resources/app.asar)"
 	[ -f "$app" ] || app="$game/$(find_ci resources/app)"
