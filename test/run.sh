@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.." || exit 1
 fx=$(mktemp -d)
 trap 'rm -rf "$fx"' EXIT INT TERM
 pass=0 fail=0
+export WAYLAND_DISPLAY=wayland-test
 
 check() {
 	if printf '%s\n' "$out" | grep -qF -- "$2"; then
@@ -58,11 +59,13 @@ if command -v node >/dev/null 2>&1; then
 require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', children: [f('package.json', '{}'),
   { name: 'www', children: [f('index.html', ''), { name: 'js', children: [f('rpg_core.js', '')] }] }] }))" "$fx/packed/Game.exe"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR wasd=$RPGM_WASD appdata=$LOCALAPPDATA"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
+	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR wasd=$RPGM_WASD appdata=$LOCALAPPDATA args=$*"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION"\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
+	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER"\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'an Enigma-packed game is unpacked and run' "electron got $fx/data/rpgm/unpacked/"
+	check 'Electron is started on Wayland' 'args=--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
+	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./rpgm "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
 	mkdir -p "$fx/nw"
 	node -e "const { zip } = require('./test/evb-test.js'); require('fs').writeFileSync(process.argv[1], zip([
@@ -77,7 +80,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'Windows folders point into rpgm/windows' "appdata=$fx/data/rpgm/windows/AppData/Local"
 	out=$(ls -d "$fx/data/rpgm/windows/AppData/Roaming"); check 'and exist' 'AppData/Roaming'
 	out=$(PATH="$fx/bin:$PATH" LOCALAPPDATA=/mine sh ./rpgm "$fx/packed" 2>&1); check 'a set LOCALAPPDATA is kept' 'appdata=/mine'
-	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/xp" 2>/dev/null); check 'XP runs as RGSS1' 'rgss=1'
+	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/xp" 2>/dev/null); check 'XP runs as RGSS1' 'rgss=1'; check 'mkxp-z is told to use Wayland' 'driver=wayland'
 	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/vx" 2>/dev/null); check 'VX Ace runs as RGSS3' 'rgss=3'
 	mkdir -p "$fx/mz/save"
 	node -e "process.stdout.write(require('zlib').deflateSync('{\"party\":{\"_gold\":100}}').toString('latin1'))" >"$fx/mz/save/file1.rmmzsave"

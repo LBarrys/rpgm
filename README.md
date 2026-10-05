@@ -4,7 +4,7 @@ Run Windows releases of RPG Maker games natively on Alpine Linux, without Wine.
 
 A small rewrite of [rpgmakermlinux-cicpoffs](https://github.com/bakustarver/rpgmakermlinux-cicpoffs)
 for musl, with no bundled binaries. MV and MZ run on Alpine's own `electron`; XP, VX and VX Ace run
-on [mkxp-z](https://github.com/mkxp-z/mkxp-z).
+on [mkxp-z](https://github.com/mkxp-z/mkxp-z). Wayland only: there is no X11 or Xwayland path.
 
 ## Install
 
@@ -15,7 +15,9 @@ apk add electron       # Alpine edge, testing repository
 ```
 
 `build-mkxp-z.sh` installs the build dependencies it is missing (through `doas` or `sudo` when not
-run as root) and removes them again when it ends, so only mkxp-z itself is left behind.
+run as root), builds in a temporary folder, and removes both when it ends, so only mkxp-z itself is
+left behind. Its SDL is built for Wayland only, without X11 or KMS/DRM, and it draws with Mesa's
+OpenGL over EGL; the ANGLE translation layer is left out.
 
 Nothing else is needed: games shipped as `package.nw`, or packed inside `Game.exe` with Enigma
 Virtual Box, are unpacked on first run by `lib/evb.js`, which runs on `electron`. Zip file names
@@ -43,7 +45,8 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 
 ## How it works
 
-- `rpgm` (POSIX sh) detects the engine and starts the runtime.
+- `rpgm` (POSIX sh) detects the engine and starts the runtime on Wayland: Electron with
+  `--ozone-platform=wayland` and client-side window decorations, mkxp-z with `SDL_VIDEODRIVER=wayland`.
 - `lib/electron-preload.js` provides the NW.js APIs games use (`nw.Window`, `nw.App`, `nw.gui`,
   `process.mainModule`, `window.prompt` via zenity/kdialog/yad) with Node.js in the page.
 - `lib/ci.js` resolves file names case-insensitively, as Windows does; `lib/serve.js` serves game
@@ -74,6 +77,7 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 ## Limitations
 
 - MV/MZ need Alpine edge, where `electron` lives.
+- A Wayland compositor is required; `rpgm` refuses to start a game without `WAYLAND_DISPLAY`.
 - Windows DLLs cannot load; Steam features are off (see above).
 - The Enigma unpacker is a port of [evbunpack](https://github.com/mos9527/evbunpack)'s current
   format and is tested against it on generated archives; very old Enigma versions use a layout it
