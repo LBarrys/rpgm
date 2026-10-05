@@ -19,8 +19,21 @@ libxi-dev libxinerama-dev libxscrnsaver-dev libxkbcommon-dev libxfixes-dev wayla
 wayland-protocols libdecor-dev mesa-dev alsa-lib-dev pulseaudio-dev'
 missing=
 for p in $deps; do apk info -e "$p" >/dev/null 2>&1 || missing="$missing $p"; done
-[ -z "$missing" ] || die "install the build dependencies first, as root:
+if [ -n "$missing" ]; then
+	as_root=
+	if [ "$(id -u)" != 0 ]; then
+		if command -v doas >/dev/null 2>&1; then as_root=doas
+		elif command -v sudo >/dev/null 2>&1; then as_root=sudo
+		else die "install the build dependencies first, as root:
   apk add$missing"
+		fi
+	fi
+	echo "==> installing build dependencies, removed again when this script ends:$missing"
+	trap 'exit 1' INT TERM
+	trap 'echo "==> removing build dependencies"; $as_root apk del -q .rpgm-mkxp-z-build' EXIT
+	# shellcheck disable=SC2086
+	$as_root apk add -q --virtual .rpgm-mkxp-z-build $missing
+fi
 
 if [ ! -d "$src/.git" ]; then
 	mkdir -p "$(dirname "$src")"
