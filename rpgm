@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-VERSION=0.4.1
+VERSION=0.5.0
 self=$(readlink -f "$0")
 here=$(dirname "$self")/lib
 
@@ -31,6 +31,7 @@ Runs a Windows RPG Maker game natively (default: the current directory).
 
   -t, --test      playtest mode (F9 debug menu, F12 devtools)
   -e, --editor    MV/MZ: F8 opens an editor for gold, items, actors, switches
+  -w, --wasd      MV/MZ: WASD moves, E confirms, Q cancels
   -i, --info      show what was detected
   -s, --setup     XP/VX/VX Ace: write an mkxp.json that loads the shims
   --edit-save     MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
@@ -42,11 +43,12 @@ out), RPGM_MKXPZ_PRELOAD (mkxp-z's scripts/preload, if not found).
 EOF
 }
 
-mode=run test='' editor=''
+mode=run test='' editor='' wasd=''
 while [ $# -gt 0 ]; do
 	case $1 in
 	-t | --test) test=1 ;;
 	-e | --editor) editor=1 ;;
+	-w | --wasd) wasd=1 ;;
 	-i | --info) mode=info ;;
 	-s | --setup) mode=setup ;;
 	--edit-save) mode=edit-save ;;
@@ -145,13 +147,16 @@ ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
 
 run_electron() {
 	have electron || die "electron is not installed (apk add electron, Alpine edge testing)"
+	win="${XDG_DATA_HOME:-$HOME/.local/share}/rpgm/windows"
+	export USERPROFILE="${USERPROFILE:-$win}" APPDATA="${APPDATA:-$win/AppData/Roaming}" LOCALAPPDATA="${LOCALAPPDATA:-$win/AppData/Local}"
+	mkdir -p "$USERPROFILE" "$APPDATA" "$LOCALAPPDATA" || die "cannot create $win"
 	# shellcheck disable=SC2086
 	exec electron $flags "$@"
 }
 
 case $engine in
 mv | mz | nwjs)
-	export RPGM_GAME="$game" RPGM_TEST="$test" RPGM_EDITOR="$editor"
+	export RPGM_GAME="$game" RPGM_TEST="$test" RPGM_EDITOR="$editor" RPGM_WASD="$wasd"
 	run_electron "$here" ;;
 nwjs-zip | evb)
 	[ "$engine" = evb ] || packed="$game/$(find_ci package.nw)"
@@ -160,7 +165,7 @@ nwjs-zip | evb)
 		node_js "$here/evb.js" "$packed" "$unpacked" || exit 1
 		touch "$unpacked/.rpgm-unpacked"
 	fi
-	exec sh "$self" ${test:+--test} ${editor:+--editor} "$unpacked" ;;
+	exec sh "$self" ${test:+--test} ${editor:+--editor} ${wasd:+--wasd} "$unpacked" ;;
 electron-app)
 	app="$game/$(find_ci resources/app.asar)"
 	[ -f "$app" ] || app="$game/$(find_ci resources/app)"
@@ -171,7 +176,10 @@ rgss)
 	cd "$game"
 	pre=$(mkxp_preload_dir || true)
 	[ -z "$pre" ] || export RPGM_MKXPZ_PRELOAD="$pre"
-	export SRCDIR="$game" RPGM_SHIM_DIR="$here/rgss"
+	case $(find_ci 'data/scripts.r*data*' | tr '[:upper:]' '[:lower:]') in
+	*.rxdata) rgss=1 ;; *.rvdata) rgss=2 ;; *) rgss=3 ;;
+	esac
+	export SRCDIR="$game" RPGM_SHIM_DIR="$here/rgss" RPGM_RGSS_VERSION="$rgss"
 	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
 *) die "no RPG Maker game found in $game" ;;
 esac

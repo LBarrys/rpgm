@@ -58,7 +58,9 @@ if command -v node >/dev/null 2>&1; then
 require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', children: [f('package.json', '{}'),
   { name: 'www', children: [f('index.html', ''), { name: 'js', children: [f('rpg_core.js', '')] }] }] }))" "$fx/packed/Game.exe"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
+	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR wasd=$RPGM_WASD appdata=$LOCALAPPDATA"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
+	# shellcheck disable=SC2016
+	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION"\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'an Enigma-packed game is unpacked and run' "electron got $fx/data/rpgm/unpacked/"
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
@@ -70,6 +72,13 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(cd "$fx/nwdata" && find . -type f); check 'with its Shift-JIS file names decoded' '決定.ogg'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --editor "$fx/packed" 2>&1)
 	check '--editor reaches a packed game after unpacking' 'editor=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --wasd "$fx/packed" 2>&1)
+	check '--wasd reaches the game' 'wasd=1'
+	check 'Windows folders point into rpgm/windows' "appdata=$fx/data/rpgm/windows/AppData/Local"
+	out=$(ls -d "$fx/data/rpgm/windows/AppData/Roaming"); check 'and exist' 'AppData/Roaming'
+	out=$(PATH="$fx/bin:$PATH" LOCALAPPDATA=/mine sh ./rpgm "$fx/packed" 2>&1); check 'a set LOCALAPPDATA is kept' 'appdata=/mine'
+	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/xp" 2>/dev/null); check 'XP runs as RGSS1' 'rgss=1'
+	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/vx" 2>/dev/null); check 'VX Ace runs as RGSS3' 'rgss=3'
 	mkdir -p "$fx/mz/save"
 	node -e "process.stdout.write(require('zlib').deflateSync('{\"party\":{\"_gold\":100}}').toString('latin1'))" >"$fx/mz/save/file1.rmmzsave"
 	out=$(EDITOR=true sh ./rpgm --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check '--edit-save writes nothing when nothing changed' 'Unchanged'
@@ -82,6 +91,18 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	done
 else
 	echo "  (node not installed; skipped)"
+fi
+
+if command -v ruby >/dev/null 2>&1; then
+	echo "== rgss"
+	out=$(RPGM_RGSS_VERSION=1 ruby -e 'load "lib/rgss/ruby18.rb"
+class Hero; attr_reader :type; def initialize; @type = :mage; end; def act; end; end
+puts 1.type, Hero.new.type, Hero.instance_methods.include?("act"), Hero.new.methods.include?("act"), [1, nil].nitems, { a: 9 }.index(9)' 2>&1)
+	check 'Ruby 1.8: obj.type is its class' 'Integer'; check "a game's own type wins" 'mage'
+	check 'method lists accept strings' 'true'; check 'Array#nitems and Hash#index are back' "1
+a"
+	out=$(RPGM_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts 1.respond_to?(:type)' 2>&1)
+	check 'VX Ace is left on modern Ruby' 'false'
 fi
 
 echo "$pass passed, $fail failed"

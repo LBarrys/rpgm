@@ -53,5 +53,17 @@ is('a file created after the first listing is still found',
   ci.resolve(path.join(www, 'img', 'system', 'late.png')),
   path.join(www, 'img', 'system', 'Late.PNG'));
 
+const save = path.join(www, 'save');
+is('a path without backslashes is left alone', ci.unbackslash(path.join(save, 'file1.rpgsave')), path.join(save, 'file1.rpgsave'));
+is('a Windows separator becomes a folder', ci.unbackslash(www + '/save\\file1.rpgsave'), www + '/save/file1.rpgsave');
+fs.writeFileSync(www + '/save\\file2.rpgsave', 'old save');
+is('a save written under the backslash name is moved into place', ci.unbackslash(www + '/save\\file2.rpgsave'), www + '/save/file2.rpgsave');
+is('with its contents', fs.readFileSync(path.join(save, 'file2.rpgsave'), 'utf8'), 'old save');
+is('and the misnamed file is gone', fs.existsSync(www + '/save\\file2.rpgsave'), false);
+fs.writeFileSync(www + '/save\\file2.rpgsave', 'stale');
+ci.unbackslash(www + '/save\\file2.rpgsave');
+is('an existing save is never overwritten', fs.readFileSync(path.join(save, 'file2.rpgsave'), 'utf8'), 'old save');
+is('non-strings pass through', ci.unbackslash(3), 3);
+
 fs.rmSync(root, { recursive: true, force: true });
 process.exit(failed ? 1 : 0);

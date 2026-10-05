@@ -3,7 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { respond, mimeOf } = require('../lib/serve.js');
-const { parsePackage } = require('../lib/game.js');
+const { parsePackage, userScripts, wasd } = require('../lib/game.js');
 
 let failed = 0;
 function is(desc, got, want) {
@@ -17,6 +17,10 @@ fs.mkdirSync(path.join(root, 'img', 'system'), { recursive: true });
 fs.writeFileSync(path.join(root, 'img', 'system', 'iconset.png'), '0123456789');
 fs.writeFileSync(path.join(root, 'empty.json'), '');
 fs.writeFileSync(path.join(root, 'test.wasm'), Buffer.from('0061736d01000000', 'hex'));
+fs.mkdirSync(path.join(root, 'tyrano'));
+fs.writeFileSync(path.join(root, 'tyrano', 'libs.js'), 'var x = 1;');
+fs.writeFileSync(path.join(root, 'tyrano', 'other.js'), 'var y = 2;');
+for (const n of ['b.rpgm.js', 'A.RPGM.JS', 'plain.js', 'rpgm.js.txt']) fs.writeFileSync(path.join(root, n), '');
 const url = p => 'app://game' + p;
 
 (async () => {
@@ -53,6 +57,19 @@ const url = p => 'app://game' + p;
   is('a folder is a 404', (await respond(root, url('/img'))).status, 404);
   is('.. cannot climb out of the game', (await respond(root, url('/%2e%2e/%2e%2e/etc/passwd'))).status, 404);
   is('a malformed escape is a 404', (await respond(root, url('/%E0%A4%A'))).status, 404);
+
+  r = await respond(root, url('/tyrano/libs.js'));
+  const libs = await r.text();
+  is("Tyrano's libs.js is told it runs on a PC", libs.endsWith('jQuery.userenv = function () { return "pc"; };\n'), true);
+  is('after its own code', libs.startsWith('var x = 1;'), true);
+  is('with the right length', +r.headers.get('content-length'), Buffer.byteLength(libs));
+  is('other Tyrano files are untouched', await (await respond(root, url('/tyrano/other.js'))).text(), 'var y = 2;');
+  is('user scripts are *.rpgm.js in the game folder, in order', userScripts(root).join(','), 'A.RPGM.JS,b.rpgm.js');
+  is('a missing folder has no user scripts', userScripts(path.join(root, 'nope')).length, 0);
+  const keys = wasd({ 13: 'ok', 87: 'pagedown', 90: 'ok' });
+  is('WASD moves', [keys[87], keys[65], keys[83], keys[68]].join(), 'up,left,down,right');
+  is('E confirms and Q cancels', keys[69] + ',' + keys[81], 'ok,escape');
+  is('other keys keep their mapping', keys[13] + ',' + keys[90], 'ok,ok');
 
   const burst = await Promise.all(Array.from({ length: 1000 }, (_, i) =>
     respond(root, url('/img/system/iconset.png'), i % 2 ? 'bytes=0-0' : null).then(x => x.status)));

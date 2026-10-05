@@ -25,6 +25,7 @@ ICU's full data, so for such a game rpgm may ask for `apk add icu-data-full`.
 rpgm [GAME_DIR | Game.exe]    # default: the current directory
 rpgm --test GAME              # playtest: F9 debug menu, F12 devtools
 rpgm --editor GAME            # MV/MZ: F8 opens an in-game editor
+rpgm --wasd GAME              # MV/MZ: WASD moves, E confirms, Q cancels
 rpgm --edit-save SAVE_FILE    # MV/MZ: edit a save as JSON in $EDITOR
 rpgm --info GAME              # engine, version and runtime found
 rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the shims
@@ -53,10 +54,17 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 - `--edit-save` (`lib/savejson.js`) is for saves the game cannot load: it decodes MZ saves with
   zlib and MV saves with the game's own `lz-string.js`, opens the JSON in `$EDITOR` (default `vi`),
   and writes it back in the same format, keeping the first original as `.bak`.
+- Windows habits are smoothed over: a save path built with `\` (`save\file1.rpgsave`) becomes a real
+  folder, and saves already written under such a name are moved into it; `USERPROFILE`, `APPDATA`
+  and `LOCALAPPDATA` point into `~/.local/share/rpgm/windows/`; TyranoBuilder games are told they
+  run on a PC, not a phone.
+- Any `*.rpgm.js` file in the game folder is loaded after the game's core scripts (and, for MV, its
+  plugins), for your own fixes or mods without editing the game.
 - The game runs from the folder holding `index.html`, so mod loaders find `www/mods`. Saves stay in
   the game's `save/` folder, compatible with Windows; browser storage is in `~/.local/share/rpgm/`.
 - `lib/rgss/all.rb` loads mkxp-z's `win32_wrap.rb` and `kgl2_wrap.rb`, then shims for what Windows
-  RGSS did and mkxp-z does not: `user32` window calls, Ruby 1.9's `DL`, `.ini` access, input
+  RGSS did and mkxp-z does not: Ruby 1.8 behaviour for XP and VX (`obj.type`, `Array#nitems`, ...),
+  `user32` window calls, Ruby 1.9's `DL`, `.ini` access, input
   polling, CRLF text reads, `msgbox` output and lenient argument checks. `RPGM_RGSS_SKIP` leaves
   shims out by name.
 
@@ -76,7 +84,8 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 ## Credits and license
 
 Based on rpgmakermlinux-cicpoffs by bakustarver; the editors were inspired by
-[rmse](https://github.com/nathan-b/rmse) by Nathan Baker. mkxp-z by Roza and contributors runs the RGSS
+[rmse](https://github.com/nathan-b/rmse) by Nathan Baker, and the Windows, Tyrano, Ruby 1.8, WASD
+and user-script fixes by [Kawariki](https://github.com/Orochimarufan/Kawariki) by Taeyeon Mori. mkxp-z by Roza and contributors runs the RGSS
 games; its `win32_wrap.rb` and `kgl2_wrap.rb` (Ancurio, Splendide Imaginarius, white-axe) are
 extended by the CC0 shims in `lib/rgss/`. `lib/evb.js` is ported from evbunpack by mos9527
 (Apache-2.0) and aplib by Sandor Nemes (GPL-3.0). Most of the code was written by Claude

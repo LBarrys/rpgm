@@ -43,6 +43,7 @@ end
 mkxpz = RpgmShims.mkxpz_preload
 here = RpgmShims.shim_dir
 
+RpgmShims.load_one(here, 'ruby18')
 RpgmShims.load_one(here, 'msgbox_echo')
 
 RpgmShims.load_one(mkxpz, 'win32_wrap')
