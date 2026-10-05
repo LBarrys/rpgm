@@ -62,6 +62,12 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'an Enigma-packed game is unpacked and run' "electron got $fx/data/rpgm/unpacked/"
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
+	mkdir -p "$fx/nw"
+	node -e "const { zip } = require('./test/evb-test.js'); require('fs').writeFileSync(process.argv[1], zip([
+  { name: 'package.json', data: '{}' }, { name: 'js/rmmz_core.js', data: '' }, { name: Buffer.from('8c8892e82e6f6767', 'hex'), data: 'ogg' }]))" "$fx/nw/package.nw"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/nwdata" sh ./rpgm "$fx/nw" 2>&1)
+	check 'a package.nw game is unpacked without unzip and run' "electron got $fx/nwdata/rpgm/unpacked/"
+	out=$(cd "$fx/nwdata" && find . -type f); check 'with its Shift-JIS file names decoded' '決定.ogg'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --editor "$fx/packed" 2>&1)
 	check '--editor reaches a packed game after unpacking' 'editor=1'
 	mkdir -p "$fx/mz/save"

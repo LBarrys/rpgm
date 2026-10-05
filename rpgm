@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-VERSION=0.4.0
+VERSION=0.4.1
 self=$(readlink -f "$0")
 here=$(dirname "$self")/lib
 
@@ -157,11 +157,7 @@ nwjs-zip | evb)
 	[ "$engine" = evb ] || packed="$game/$(find_ci package.nw)"
 	if [ ! -f "$unpacked/.rpgm-unpacked" ] || [ -n "$(find "$packed" -newer "$unpacked/.rpgm-unpacked")" ]; then
 		mkdir -p "$unpacked" || die "cannot create $unpacked"
-		if [ "$engine" = nwjs-zip ]; then
-			have unzip || die "unzip is required (apk add unzip)"
-			unzip -qo "$packed" -d "$unpacked" || die "cannot unpack $packed"
-		else node_js "$here/evb.js" "$packed" "$unpacked" || exit 1
-		fi
+		node_js "$here/evb.js" "$packed" "$unpacked" || exit 1
 		touch "$unpacked/.rpgm-unpacked"
 	fi
 	exec sh "$self" ${test:+--test} ${editor:+--editor} "$unpacked" ;;

@@ -14,8 +14,9 @@ apk add electron       # Alpine edge, testing repository
 ./build-mkxp-z.sh      # only for XP/VX/VX Ace: Alpine does not package mkxp-z
 ```
 
-`unzip` is needed for games shipped as `package.nw`. Games packed inside `Game.exe` with Enigma
-Virtual Box are unpacked on first run by `lib/evb.js`, which needs nothing beyond `electron`.
+Nothing else is needed: games shipped as `package.nw`, or packed inside `Game.exe` with Enigma
+Virtual Box, are unpacked on first run by `lib/evb.js`, which runs on `electron`. Zip file names
+are read as UTF-8, or as Shift-JIS when an older Japanese tool wrote them.
 
 ## Use
 

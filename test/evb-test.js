@@ -2,7 +2,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { aplib, unpack } = require('../lib/evb.js');
+const zlib = require('zlib');
+const { aplib, unpack, unzip } = require('../lib/evb.js');
 
 function pack(data) {
   const out = [data[0]];
@@ -67,9 +68,53 @@ const game = {
   ],
 };
 
-module.exports = { evb, game };
+function zip(files, zip64 = false) {
+  const locals = [], central = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = Buffer.isBuffer(f.name) ? f.name : Buffer.from(f.name);
+    const data = Buffer.from(f.data || '');
+    const method = f.method ?? 8;
+    const body = method === 8 ? zlib.deflateRawSync(data) : data;
+    const flags = f.utf8 ? 0x800 : 0;
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(flags, 6); lh.writeUInt16LE(method, 8); lh.writeUInt32LE(zlib.crc32(data), 14);
+    lh.writeUInt32LE(body.length, 18); lh.writeUInt32LE(f.usize ?? data.length, 22); lh.writeUInt16LE(name.length, 26);
+    locals.push(lh, name, body);
+    const extra = Buffer.alloc(zip64 ? 28 : 0);
+    if (zip64) {
+      extra.writeUInt16LE(1, 0); extra.writeUInt16LE(24, 2);
+      extra.writeBigUInt64LE(BigInt(f.usize ?? data.length), 4); extra.writeBigUInt64LE(BigInt(body.length), 12); extra.writeBigUInt64LE(BigInt(offset), 20);
+    }
+    const big = v => (zip64 ? 0xffffffff : v);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(flags, 8); ch.writeUInt16LE(method, 10); ch.writeUInt32LE(f.crc ?? zlib.crc32(data), 16);
+    ch.writeUInt32LE(big(body.length), 20); ch.writeUInt32LE(big(f.usize ?? data.length), 24);
+    ch.writeUInt16LE(name.length, 28); ch.writeUInt16LE(extra.length, 30); ch.writeUInt32LE(big(offset), 42);
+    central.push(ch, name, extra);
+    offset += 30 + name.length + body.length;
+  }
+  const cd = Buffer.concat(central);
+  const tail = [];
+  if (zip64) {
+    const e64 = Buffer.alloc(56);
+    e64.writeUInt32LE(0x06064b50, 0); e64.writeBigUInt64LE(44n, 4);
+    e64.writeBigUInt64LE(BigInt(files.length), 24); e64.writeBigUInt64LE(BigInt(files.length), 32);
+    e64.writeBigUInt64LE(BigInt(cd.length), 40); e64.writeBigUInt64LE(BigInt(offset), 48);
+    const loc = Buffer.alloc(20);
+    loc.writeUInt32LE(0x07064b50, 0); loc.writeBigUInt64LE(BigInt(offset + cd.length), 8); loc.writeUInt32LE(1, 16);
+    tail.push(e64, loc);
+  }
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(zip64 ? 0xffff : files.length, 8); end.writeUInt16LE(zip64 ? 0xffff : files.length, 10);
+  end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(zip64 ? 0xffffffff : offset, 16);
+  return Buffer.concat([...locals, cd, ...tail, end]);
+}
 
-if (require.main === module) {
+module.exports = { evb, game, zip };
+
+if (require.main === module) (async () => {
   let failed = 0;
   const is = (desc, got, want) => {
     if (got === want) { console.log('ok ' + desc); return; }
@@ -101,6 +146,36 @@ if (require.main === module) {
   try { unpack(path.join(tmp, 'Plain.exe'), path.join(tmp, 'plain')); } catch (e) { msg = e.message; }
   is('an unpacked .exe is refused', /not packed/.test(msg), true);
 
+  const nw = [
+    { name: 'www/', method: 0 },
+    { name: 'package.json', data: '{"main":"www/index.html"}' },
+    { name: 'www/index.html', data: '<!doctype html>'.repeat(40), method: 0 },
+    { name: 'www/img/セーブ.png', data: 'png', utf8: true },
+    { name: Buffer.from('8c8892e82e6f6767', 'hex'), data: 'ogg' },
+  ];
+  for (const zip64 of [false, true]) {
+    const label = zip64 ? 'ZIP64: ' : 'zip: ';
+    const out = path.join(tmp, `nw${zip64}`);
+    fs.writeFileSync(out + '.nw', zip(nw, zip64));
+    try { await unzip(out + '.nw', out); } catch (e) { console.log('FAIL unzip threw: ' + e.message); failed++; }
+    const get = p => { try { return fs.readFileSync(path.join(out, p), 'utf8'); } catch { return null; } };
+    is(label + 'a deflated file is extracted', get('package.json'), '{"main":"www/index.html"}');
+    is(label + 'a stored file is extracted', get('www/index.html'), '<!doctype html>'.repeat(40));
+    is(label + 'a UTF-8-flagged name is kept', get('www/img/セーブ.png'), 'png');
+    is(label + 'an unflagged Shift-JIS name is decoded', get('決定.ogg'), 'ogg');
+  }
+  const refused = async (desc, files, pattern) => {
+    fs.writeFileSync(path.join(tmp, 'bad.nw'), zip(files));
+    let msg = '';
+    try { await unzip(path.join(tmp, 'bad.nw'), path.join(tmp, 'bad')); } catch (e) { msg = e.message; }
+    is(desc, pattern.test(msg), true);
+  };
+  await refused('zip: a path out of the folder is refused', [{ name: '../escape.txt', data: 'x' }], /outside/);
+  await refused('zip: an unsupported compression method is refused', [{ name: 'a.txt', data: 'x', method: 12 }], /method 12/);
+  await refused('zip: a damaged file is reported', [{ name: 'a.txt', data: 'abc', usize: 5 }], /damaged/);
+  await refused('zip: a corrupted file is reported', [{ name: 'a.txt', data: 'abc', crc: 1 }], /damaged/);
+  is('zip: nothing escaped the folder', fs.existsSync(path.join(tmp, 'escape.txt')), false);
+
   fs.rmSync(tmp, { recursive: true, force: true });
   process.exit(failed ? 1 : 0);
-}
+})();
