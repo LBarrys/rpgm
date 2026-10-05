@@ -73,6 +73,13 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
   `user32` window calls, Ruby 1.9's `DL`, `.ini` access, input
   polling, CRLF text reads, `msgbox` output and lenient argument checks. `RPGM_RGSS_SKIP` leaves
   shims out by name.
+- `lib/rgss/patches.rb` then edits the game's scripts before they run, and prints each change. It
+  removes plugins that need Windows-only DLLs or only did what mkxp-z already does (Auto Font
+  Install, `wfcrypt`, KGC_BitmapExtension's `TRGSSX`, `winmm` joysticks), cuts Steam ownership
+  checks, copies text with `dup` where `clone` kept Ruby 3's frozen strings frozen, and refreshes
+  input for Pokemon Essentials' `raw_key_states`. `RPGM_RGSS_SKIP=patches` turns it off.
+- Any `*.rpgm.rb` file in an XP/VX/VX Ace game folder runs after the game's scripts, just before
+  `Main`, as `*.rpgm.js` does for MV/MZ.
 
 ## Limitations
 
@@ -91,8 +98,8 @@ rpgm --setup GAME             # XP/VX/VX Ace: write an mkxp.json that loads the 
 ## Credits and license
 
 Based on rpgmakermlinux-cicpoffs by bakustarver; the editors were inspired by
-[rmse](https://github.com/nathan-b/rmse) by Nathan Baker, and the Windows, Tyrano, Ruby 1.8, WASD
-and user-script fixes by [Kawariki](https://github.com/Orochimarufan/Kawariki) by Taeyeon Mori. mkxp-z by Roza and contributors runs the RGSS
+[rmse](https://github.com/nathan-b/rmse) by Nathan Baker, and the Windows, Tyrano, Ruby 1.8, WASD,
+user-script and RGSS script-patch fixes by [Kawariki](https://github.com/Orochimarufan/Kawariki) by Taeyeon Mori. mkxp-z by Roza and contributors runs the RGSS
 games; its `win32_wrap.rb` and `kgl2_wrap.rb` (Ancurio, Splendide Imaginarius, white-axe) are
 extended by the CC0 shims in `lib/rgss/`. `lib/evb.js` is ported from evbunpack by mos9527
 (Apache-2.0) and aplib by Sandor Nemes (GPL-3.0). Most of the code was written by Claude

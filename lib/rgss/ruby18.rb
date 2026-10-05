@@ -35,10 +35,10 @@ if ENV['RPGM_RGSS_VERSION'].to_i.between?(1, 2)
       sample
     end unless method_defined?(:choice)
   end
+end
 
-  class Hash
-    def index(value)
-      key(value)
-    end unless method_defined?(:index)
-  end
+class Hash
+  def index(value)
+    key(value)
+  end unless method_defined?(:index)
 end

@@ -106,6 +106,42 @@ puts 1.type, Hero.new.type, Hero.instance_methods.include?("act"), Hero.new.meth
 a"
 	out=$(RPGM_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts 1.respond_to?(:type)' 2>&1)
 	check 'VX Ace is left on modern Ruby' 'false'
+	out=$(RPGM_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts({ a: 9 }.index(9))' 2>&1)
+	check 'VX Ace gets Hash#index back, as Ruby 1.9 had it' 'a'
+	mkdir -p "$fx/rgss"
+	# shellcheck disable=SC2016
+	printf '$order << "B"\n' >"$fx/rgss/B.rpgm.rb"
+	# shellcheck disable=SC2016
+	printf '$order << "a"\n' >"$fx/rgss/a.rpgm.rb"
+	# shellcheck disable=SC2016
+	out=$(SRCDIR="$fx/rgss" ruby -Ku -e '$RGSS_SCRIPTS = [
+  [1, "Fonts", "", "# ** Auto Font Install\nraise \"font\"\n"],
+  [2, "Steam", "", "x = 1\nexit if steam.is_subscribed != true\nputs \"steam ok\"\n"],
+  [3, "Text", "", "t = nil.to_s.clone\nt << \"k\"\nputs \"text \" + t\n"],
+  [4, "KGC", "", "# ビットマップ拡張 - KGC_BitmapExtension ◆ XP/VX\nraise \"kgc\"\n"],
+  [5, "Broken", "", "# \xff\nx.to_s.clone\n".dup.force_encoding("UTF-8")],
+  [6, "Main", "", "$order << \"main\"\n"],
+]
+$order = []
+load "lib/rgss/patches.rb"
+puts "broken kept" if $RGSS_SCRIPTS[4][3].end_with?("x.to_s.clone\n")
+$RGSS_SCRIPTS.each { |s| eval(s[3], binding, s[1]) unless s[1] == "Broken" }
+puts "order: " + $order.join(",")' 2>&1)
+	check 'Auto Font Install is removed' 'Fonts: Auto Font Install removed'
+	check 'the Steam check is cut and the rest runs' 'steam ok'
+	check 'frozen text is copied unfrozen' 'text k'
+	check 'a Japanese-marked Windows-only plugin is removed' 'KGC: KGC_BitmapExtension removed'
+	check 'user scripts run in name order before Main' 'order: B,a,main'
+	check 'and each is announced' 'B.rpgm.rb runs before Main'
+	check 'a script with invalid UTF-8 is left alone' 'broken kept'
+	# shellcheck disable=SC2016
+	out=$(ruby -e '$RGSS_SCRIPTS = [[1, "Input", "", "module Input; def self.update; $u = \"updated\"; end; def self.raw_key_states; $u.to_s + \" keys\"; end; end\n"],
+  [2, "Essentials", "", "module Input; end\ndef pbSameThread(w); end\nputs Input.raw_key_states\n"]]
+load "lib/rgss/patches.rb"
+$RGSS_SCRIPTS.each { |s| eval(s[3], binding, s[1]) }
+puts "lines: #{$RGSS_SCRIPTS[1][3].lines.size}"' 2>&1)
+	check 'Pokemon Essentials refreshes input before raw_key_states' 'updated keys'
+	check 'without moving its line numbers' 'lines: 3'
 fi
 
 echo "$pass passed, $fail failed"
