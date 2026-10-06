@@ -16,7 +16,7 @@ apk add easyrpg-player   # 2000/2003
 ```sh
 rpgm [GAME_DIR | Game.exe]   # default: current directory
 rpgm --test GAME             # playtest
-rpgm --editor GAME           # MV/MZ: F8 cheat menu (god mode, no clip, speed, teleport, items...)
+rpgm --editor GAME           # F8 cheat menu (god mode, no clip, speed, teleport, items...)
 rpgm --wasd GAME             # MV/MZ: WASD moves, E confirms, Q cancels
 rpgm --edit-save SAVE        # MV/MZ: edit a save as JSON in $EDITOR
 rpgm --info GAME             # show what was detected

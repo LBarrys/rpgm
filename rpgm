@@ -30,7 +30,7 @@ Usage: rpgm [-t | -e | -w | -i] [GAME_DIR | GAME.exe]
 Runs a Windows RPG Maker game natively (default: the current directory).
 
   -t, --test      playtest mode (F9 debug menu, F12 devtools)
-  -e, --editor    MV/MZ: F8 opens a cheat menu and editor
+  -e, --editor    F8 opens a cheat menu (MV/MZ/XP/VX/VX Ace)
   -w, --wasd      MV/MZ: WASD moves, E confirms, Q cancels
   -i, --info      show what was detected
   --edit-save     MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
@@ -206,7 +206,7 @@ rgss)
 		EOF
 		cd "$conf"
 	fi
-	export SDL_VIDEODRIVER=wayland SRCDIR="$game" RPGM_SHIM_DIR="$here/rgss" RPGM_RGSS_VERSION="$rgss"
+	export SDL_VIDEODRIVER=wayland SRCDIR="$game" RPGM_SHIM_DIR="$here/rgss" RPGM_RGSS_VERSION="$rgss" RPGM_EDITOR="$editor"
 	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
 rm2k)
 	have easyrpg-player || die "RPG Maker 2000/2003 games need easyrpg-player (apk add easyrpg-player)"

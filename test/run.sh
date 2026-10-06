@@ -64,7 +64,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR wasd=$RPGM_WASD appdata=$LOCALAPPDATA args=$*"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER pwd=$PWD"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
+	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER editor=$RPGM_EDITOR pwd=$PWD"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "easyrpg driver=$SDL_VIDEODRIVER rtp=${RPG2K_RTP_PATH:-} args=$*"\n' >"$fx/bin/easyrpg-player" && chmod +x "$fx/bin/easyrpg-player"
 	mkdir -p "$fx/lib/mkxp-z/scripts/preload" "$fx/lib/mkxp-z/stdlib" "$fx/data/rpgm/rtp/Standard" "$fx/data/rpgm/rtp/RPG2000"
@@ -99,6 +99,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/xpa" 2>&1); check 'an XP archive-only game runs as RGSS1' 'rgss=1'
 	check 'a missing RTP is pointed out' "extract it to $fx/data/rpgm/rtp/RPGVX"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --editor "$fx/vxa" 2>&1); check '--editor reaches XP/VX/VX Ace games' 'editor=1'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --test "$fx/2k" 2>&1)
 	check 'RPG Maker 2000/2003 runs on EasyRPG, on Wayland' 'easyrpg driver=wayland'
 	check 'with the game folder and playtest mode' "args=--project-path $fx/2k --test-play"
@@ -127,6 +128,11 @@ puts 1.type, Hero.new.type, Hero.instance_methods.include?("act"), Hero.new.meth
 a"
 	out=$(RPGM_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts 1.respond_to?(:type)' 2>&1)
 	check 'VX Ace is left on modern Ruby' 'false'
+	for t in test/*-test.rb; do
+		out=$(ruby "$t" 2>&1) || true
+		pass=$((pass + $(printf '%s\n' "$out" | grep -c '^ok '))); fail=$((fail + $(printf '%s\n' "$out" | grep -vc '^ok ')))
+		printf '%s\n' "$out" | sed 's/^ok /  ok /'
+	done
 	out=$(RPGM_RGSS_VERSION=3 ruby -e 'load "lib/rgss/ruby18.rb"; puts({ a: 9 }.index(9))' 2>&1)
 	check 'VX Ace gets Hash#index back, as Ruby 1.9 had it' 'a'
 	mkdir -p "$fx/rgss"
