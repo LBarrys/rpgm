@@ -48,11 +48,14 @@ module Input
   @script = []
   @now = []
   class << self
-    attr_accessor :script
-    def update; @now = @script.shift || []; end
+    attr_accessor :script, :text_input
+    def update; @now = @script.shift || []; @typed = @now.grep(String).join; end
     def trigger?(k); @now.include?(k); end
     def repeat?(k); @now.include?(k); end
     def press?(k); @now.include?(k); end
+    alias_method :triggerex?, :trigger?
+    alias_method :repeatex?, :trigger?
+    def gets; t = @typed.to_s; @typed = ''; t; end
   end
 end
 
@@ -218,16 +221,26 @@ play(*to('Game speed'), [:RIGHT], [:RIGHT])
 is('game speed raises the frame rate', Graphics.frame_rate, (V == 1 ? 40 : 60) * 3)
 play(*to('Game speed'), [:LEFT], [:LEFT], [:LEFT])
 is('and lowers it to half', Graphics.frame_rate, (V == 1 ? 20 : 30))
-play(*to('Items >'), [:C], *[[:RIGHT, :SHIFT]] * 11, [:B], [:DOWN], [:C], [:RIGHT])
+play(*to('Items >'), [:C], [:DOWN], *[[:RIGHT, :SHIFT]] * 11, [:B], [:DOWN], [:C], [:DOWN], [:RIGHT])
 count = V == 1 ? [$game_party.store[['item', 1]], $game_party.store[['weapon', 1]]] : [$game_party.store[$data_items[1]], $game_party.store[$data_weapons[1]]]
 is('items are capped at 99, weapons are their own list', count, [99, 1])
-play(*to('Switches >'), [:C], [:C], [:B], [:DOWN], [:C], [:RIGHT, :SHIFT])
+play(*to('Switches >'), [:C], [:DOWN], [:C], [:B], [:DOWN], [:C], [:DOWN], [:RIGHT, :SHIFT])
 is('a switch is turned on, a variable raised', [$game_switches[1], $game_variables[1], $game_map.need_refresh], [true, 15, true])
-play(*to('Teleport >'), [:C], [:C], [:DOWN], [:DOWN], [:DOWN], [:C])
+play(*to('Teleport >'), [:C], [:DOWN], [:C], [:DOWN], [:DOWN], [:DOWN], [:C])
 is('a spot is remembered', C.spots, [[1, 3, 4]])
 moved = V == 1 ? [$game_temp.player_new_map_id, $game_temp.player_new_x, $game_temp.player_new_y, $game_temp.player_transferring] : $game_player.moved
 is('teleport goes to a map by name, inside its size', moved, V == 1 ? [2, 3, 4, true] : [2, 3, 4, 2])
 is('a missing map is refused', C.teleport(9), false)
+$data_items << Item.new(3, 'Ether') << Item.new(4, 'Hi-Potion')
+play(*to('Items >'), [:C], [:C], ['po'], ['x', :B], [:BACKSPACE], ['t'], [:RETURN], [:DOWN], [:DOWN], [:RIGHT])
+is('search narrows a list as you type, and X types instead of going back', $sprite.bitmap.texts.include?('Ether'), false)
+is('the search row shows the query, Backspace included', $sprite.bitmap.texts.include?('Search: pot'), true)
+hi = V == 1 ? $game_party.store[['item', 4]] : $game_party.store[$data_items[4]]
+is('the matches can be changed after Enter', hi, 1)
+is('text input is off once the menu closes', Input.text_input, false)
+play(*to('Items >'), [:C], [:C], ['zz'], [:ESCAPE], [:DOWN], [:DOWN], [:RIGHT])
+ether = V == 1 ? $game_party.store[['item', 3]] : $game_party.store[$data_items[3]]
+is('Esc clears the search and shows everything again', ether, 1)
 play(*to('Win battle'), [:C])
 is('win battle needs a battle', $game_troop.members.map(&:hp), [100, 100])
 self.scene = Scene_Battle.new

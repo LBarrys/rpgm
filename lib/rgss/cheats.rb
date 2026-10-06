@@ -210,6 +210,7 @@ module RpgmCheats
     def initialize
       @pages = [[:main, 0, 0]]
       @note = ''
+      @query = {}
     end
 
     def step(base)
@@ -226,10 +227,6 @@ module RpgmCheats
 
     def number(label, v, base, &set)
       entry(label, v.to_s, change: ->(dir) { set.call(v + dir * step(base)) })
-    end
-
-    def say(text)
-      -> { @note = text }
     end
 
     def main
@@ -292,7 +289,41 @@ module RpgmCheats
     end
 
     def rows
-      @rows ||= page(@pages.last[0])
+      @rows ||= begin
+        name = @pages.last[0]
+        list = page(name)
+        if name != :main && Input.respond_to?(:text_input=)
+          q = @query[name].to_s
+          list = list.select { |r| r[:label].to_s.downcase.include?(q.downcase) } unless q.empty?
+          list.unshift(entry("Search: #{q}#{'_' if @typing}", nil, ok: -> { type(true) }))
+        end
+        list
+      end
+    end
+
+    def type(on)
+      @typing = on
+      Input.gets
+      Input.text_input = on
+      @note = on ? 'Type to search. Enter: done, Esc: clear.' : ''
+    end
+
+    def typing
+      name = @pages.last[0]
+      q = @query[name].to_s + Input.gets.to_s.gsub(/[[:cntrl:]]/, '')
+      q = q[0...-1] if Input.repeatex?(:BACKSPACE)
+      if Input.triggerex?(:ESCAPE)
+        q = ''
+        type(false)
+      elsif Input.triggerex?(:RETURN) || Input.triggerex?(:KP_ENTER)
+        type(false)
+      end
+      if q != @query[name].to_s
+        @query[name] = q
+        @pages[-1] = [name, 0, 0]
+      end
+      @rows = nil
+      true
     end
 
     def run
@@ -307,6 +338,7 @@ module RpgmCheats
         break unless handle
       end
     ensure
+      Input.text_input = false if @typing
       @sprite.bitmap.dispose if @sprite && @sprite.bitmap
       @sprite.dispose if @sprite
       RpgmCheats.open = false
@@ -314,6 +346,7 @@ module RpgmCheats
 
     def handle
       return false if Input.trigger?(Input::F8)
+      return typing if @typing
       if Input.trigger?(Input::B)
         @pages.pop
         @rows = nil
