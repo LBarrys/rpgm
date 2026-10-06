@@ -16,33 +16,43 @@ module RpgmTextMode
     opts.merge(universal_newline: true)
   end
 
-  module ClassMethods
+end
+
+unless File.respond_to?(:open_without_textmode)
+  class << File
+    alias_method :open_without_textmode, :open
+    alias_method :read_without_textmode, :read
+    alias_method :readlines_without_textmode, :readlines
+    alias_method :foreach_without_textmode, :foreach
+
     def open(name, mode = nil, *rest, **opts, &block)
-      super(name, *[mode, *rest].compact, **RpgmTextMode.decorate(name, mode, opts), &block)
+      open_without_textmode(name, *[mode, *rest].compact, **RpgmTextMode.decorate(name, mode, opts), &block)
     end
 
     def read(name, *rest, **opts)
-      super(name, *rest, **RpgmTextMode.decorate(name, nil, opts))
+      read_without_textmode(name, *rest, **RpgmTextMode.decorate(name, nil, opts))
     end
 
     def readlines(name, *rest, **opts)
-      super(name, *rest, **RpgmTextMode.decorate(name, nil, opts))
+      readlines_without_textmode(name, *rest, **RpgmTextMode.decorate(name, nil, opts))
     end
 
     def foreach(name, *rest, **opts, &block)
-      super(name, *rest, **RpgmTextMode.decorate(name, nil, opts), &block)
+      foreach_without_textmode(name, *rest, **RpgmTextMode.decorate(name, nil, opts), &block)
     end
   end
 
-  module KernelMethods
-    def open(name, mode = nil, *rest, **opts, &block)
-      return super if name.respond_to?(:to_open) || (name.is_a?(String) && name.start_with?('|'))
+  module Kernel
+    alias_method :open_without_textmode, :open
+    private :open_without_textmode
 
-      super(name, *[mode, *rest].compact, **RpgmTextMode.decorate(name, mode, opts), &block)
+    def open(name, mode = nil, *rest, **opts, &block)
+      if name.respond_to?(:to_open) || (name.is_a?(String) && name.start_with?('|'))
+        return open_without_textmode(name, *[mode, *rest].compact, **opts, &block)
+      end
+
+      open_without_textmode(name, *[mode, *rest].compact, **RpgmTextMode.decorate(name, mode, opts), &block)
     end
     private :open
   end
 end
-
-File.singleton_class.prepend(RpgmTextMode::ClassMethods)
-Object.prepend(RpgmTextMode::KernelMethods)

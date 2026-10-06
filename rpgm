@@ -49,7 +49,8 @@ Runs a Windows RPG Maker game natively (default: the current directory).
 Games run on Wayland only. RTPs go in ~/.local/share/rpgm/rtp/ (RPG Maker
 2000/2003: RPG2000, RPG2003; XP: Standard; VX: RPGVX; VX Ace: RPGVXAce).
 Environment: RPGM_RGSS_SKIP (shims to leave out), RPGM_MKXPZ_PRELOAD
-(mkxp-z's scripts/preload, if not found).
+(mkxp-z's scripts/preload, if not found), RPGM_YJIT=1 (XP/VX/VX Ace: try
+Ruby's JIT compiler; experimental, x86-64 only).
 EOF
 }
 
@@ -211,6 +212,10 @@ rgss)
 	lib=''
 	[ -z "$pre" ] || [ ! -d "$pre/../../stdlib" ] || lib=$(json "$(cd "$pre/../../stdlib" && pwd -P)")
 	keys="\"gameFolder\": $(json "$game"), \"preloadScript\": [$(json "$here/rgss/all.rb")], \"enableReset\": false, \"RTP\": [$paths], \"rubyLoadpath\": [$lib]"
+	if [ -n "${RPGM_YJIT:-}" ]; then
+		keys="$keys, \"YJITEnable\": true"
+		[ "$(uname -m)" = x86_64 ] || echo "rpgm: RPGM_YJIT needs x86-64; mkxp-z's Ruby 3.1 has no YJIT on $(uname -m)" >&2
+	fi
 	own=$(find_ci mkxp.json)
 	if [ -n "$own" ] && K="$keys," awk '!done && /^[ \t]*\{/ { i = index($0, "{"); $0 = substr($0, 1, i) " " ENVIRON["K"] substr($0, i + 1); done = 1 } { print } END { exit !done }' "$game/$own" >"$conf/mkxp.json"; then
 		! grep -v '^[[:space:]]*//' "$game/$own" | grep -q '"preloadScript"' || echo "rpgm: $own sets its own preloadScript, so rpgm's fixes are left out" >&2

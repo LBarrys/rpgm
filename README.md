@@ -38,6 +38,7 @@ rpgm --info GAME             # show what was detected
 - **Your own fixes:** `*.rpgm.js` (MV/MZ) or `*.rpgm.rb` (XP/VX/VX Ace) in the game folder run after
   the game's scripts.
 - **A shim breaks a game:** `RPGM_RGSS_SKIP=name,...` skips files in `lib/rgss/`.
+- **Faster XP/VX/VX Ace (experimental, x86-64):** `RPGM_YJIT=1 rpgm GAME`.
 
 Saves stay in the game folder; everything else is in `~/.local/share/rpgm/`.
 

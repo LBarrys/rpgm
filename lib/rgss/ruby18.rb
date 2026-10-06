@@ -6,25 +6,26 @@ if ENV['RPGM_RGSS_VERSION'].to_i.between?(1, 2)
       end
     end
 
-    module ObjectMethods
-      def type
-        self.class
-      end
-
-      %i[methods singleton_methods public_methods private_methods].each do |m|
-        define_method(m) { |*args| Names.new(super(*args)) }
-      end
-    end
-
-    module ModuleMethods
-      %i[instance_methods public_instance_methods private_instance_methods protected_instance_methods].each do |m|
-        define_method(m) { |*args| Names.new(super(*args)) }
+    def self.wrap_lists(klass, names)
+      names.each do |m|
+        next if klass.method_defined?(:"#{m}_without_ruby18")
+        klass.class_eval(<<~RUBY, __FILE__, __LINE__ + 1)
+          alias_method :#{m}_without_ruby18, :#{m}
+          def #{m}(*args)
+            RpgmRuby18::Names.new(#{m}_without_ruby18(*args))
+          end
+        RUBY
       end
     end
   end
 
-  Object.prepend(RpgmRuby18::ObjectMethods)
-  Module.prepend(RpgmRuby18::ModuleMethods)
+  class Object
+    def type
+      self.class
+    end
+  end
+  RpgmRuby18.wrap_lists(Object, %i[methods singleton_methods public_methods private_methods])
+  RpgmRuby18.wrap_lists(Module, %i[instance_methods public_instance_methods private_instance_methods protected_instance_methods])
 
   class Array
     def nitems

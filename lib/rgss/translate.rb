@@ -59,7 +59,7 @@ module RpgmTranslate
 
     def tr(s)
       return s unless s.is_a?(String) && !s.empty?
-      key = s.dup.force_encoding(Encoding::UTF_8)
+      key = s.encoding == Encoding::UTF_8 ? s : s.dup.force_encoding(Encoding::UTF_8)
       return s unless key.valid_encoding?
       if @dict.key?(key)
         v = @dict[key]
@@ -118,11 +118,15 @@ module RpgmTranslate
     end
   end
 
-  module DrawText
-    def draw_text(*args)
-      i = args[0].is_a?(Rect) ? 1 : 4
-      args[i] = RpgmTranslate.tr(args[i]) if args[i].is_a?(String) && args[i].length > 1
-      super(*args)
+  def self.hook_bitmap
+    return unless Object.const_defined?(:Bitmap) && !Bitmap.method_defined?(:draw_text_without_translate)
+    Bitmap.class_eval do
+      alias_method :draw_text_without_translate, :draw_text
+      def draw_text(*args)
+        i = args[0].is_a?(Rect) ? 1 : 4
+        args[i] = RpgmTranslate.tr(args[i]) if args[i].is_a?(String) && args[i].length > 1
+        draw_text_without_translate(*args)
+      end
     end
   end
 end
@@ -131,7 +135,7 @@ file = ENV['RPGM_TRANSLATE'].to_s
 unless file.empty?
   begin
     RpgmTranslate.start(file)
-    Bitmap.prepend(RpgmTranslate::DrawText) if Object.const_defined?(:Bitmap)
+    RpgmTranslate.hook_bitmap
     module Input
       class << self
         alias_method :update_without_translate, :update

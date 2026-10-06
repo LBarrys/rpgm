@@ -1,25 +1,22 @@
-[
-  ['Sprite',   %i[visible mirror]],
-  ['Window',   %i[visible active pause openness_visible arrows_visible]],
-  ['Plane',    %i[visible]],
-  ['Viewport', %i[visible]],
-  ['Tilemap',  %i[visible]],
-  ['Font',     %i[bold italic outline shadow]],
-].each do |class_name, setters|
+{
+  'Sprite' => %i[visible mirror],
+  'Window' => %i[visible active pause openness_visible arrows_visible],
+  'Plane' => %i[visible],
+  'Viewport' => %i[visible],
+  'Tilemap' => %i[visible],
+  'Font' => %i[bold italic outline shadow],
+}.each do |class_name, setters|
   next unless Object.const_defined?(class_name)
-
   klass = Object.const_get(class_name)
-  setters.each do |setter|
-    writer = :"#{setter}="
-    next unless klass.method_defined?(writer)
-    next if klass.method_defined?(:"#{setter}_without_coercion=")
-
-    klass.class_eval do
-      alias_method :"#{setter}_without_coercion=", writer
-      define_method(writer) do |value|
-        send(:"#{setter}_without_coercion=", value ? true : false)
+  setters.each do |s|
+    next unless klass.method_defined?(:"#{s}=")
+    next if klass.method_defined?(:"#{s}_without_coercion=")
+    klass.class_eval(<<~RUBY, __FILE__, __LINE__ + 1)
+      alias_method :#{s}_without_coercion=, :#{s}=
+      def #{s}=(value)
+        self.#{s}_without_coercion = value ? true : false
       end
-    end
+    RUBY
   end
 end
 

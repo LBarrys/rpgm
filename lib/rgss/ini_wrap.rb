@@ -4,23 +4,33 @@ module Win32API_Impl
       File.open(path, 'rb') { |f| f.read } rescue nil
     end
 
-    def self.lookup(path, section, key)
-      data = read(path.to_s)
+    def self.table(path)
+      st = File.stat(path) rescue nil
+      return nil unless st
+      @tables ||= {}
+      hit = @tables[path]
+      return hit[2] if hit && hit[0] == st.mtime && hit[1] == st.size
+      data = read(path)
       return nil unless data
-      want_section = section.to_s.strip.downcase
-      want_key = key.to_s.strip.downcase
+      table = {}
       current = nil
       data.each_line do |line|
         line = line.strip
         next if line.empty? || line.start_with?(';', '#')
         if line =~ /\A\[(.*)\]\z/
           current = $1.strip.downcase
-        elsif current == want_section && line.include?('=')
+        elsif current && line.include?('=')
           k, v = line.split('=', 2)
-          return v.to_s.strip if k.to_s.strip.downcase == want_key
+          (table[current] ||= {})[k.to_s.strip.downcase] ||= v.to_s.strip
         end
       end
-      nil
+      @tables[path] = [st.mtime, st.size, table]
+      table
+    end
+
+    def self.lookup(path, section, key)
+      table = table(path.to_s)
+      table && (table[section.to_s.strip.downcase] || {})[key.to_s.strip.downcase]
     end
 
     def self.store(path, section, key, value)
@@ -60,6 +70,7 @@ module Win32API_Impl
         end
       end
       File.open(path, 'wb') { |f| f.write(out.join("\r\n")) }
+      @tables.delete(path) if @tables
       true
     rescue StandardError
       false

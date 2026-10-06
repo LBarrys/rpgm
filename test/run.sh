@@ -105,6 +105,8 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'loads the shims' 'rgss/all.rb"]'; check 'turns F12 reset off' '"enableReset": false'
 	check 'adds the installed RTP the game names' "\"RTP\": [\"$fx/data/rpgm/rtp/Standard\"]"
 	check "and mkxp-z's Ruby standard library" "\"rubyLoadpath\": [\"$fx/lib/mkxp-z/stdlib\"]"
+	case $out in *YJITEnable*) fail=$((fail + 1)); echo "FAIL YJIT is on without RPGM_YJIT" ;; *) pass=$((pass + 1)); echo "  ok YJIT stays off by default" ;; esac
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" RPGM_YJIT=1 sh ./rpgm "$fx/xp" 2>&1); check 'RPGM_YJIT=1 turns on Ruby JIT' '"YJITEnable": true'
 	out=$(ls "$fx/xp"); check 'the game folder is left untouched' 'Data'; case $out in *mkxp.json*) fail=$((fail + 1)); echo "FAIL rpgm wrote into the game folder" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vx" 2>&1); check 'VX Ace runs as RGSS3' 'rgss=3'
 	check "a game with its own mkxp.json still starts from rpgm's config" "pwd=$fx/data/rpgm/mkxp/"
