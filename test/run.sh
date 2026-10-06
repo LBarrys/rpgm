@@ -26,6 +26,9 @@ printf '[Game]\r\nRTP1=Standard\r\nRTP2=\r\nScripts=Data\\Scripts.rxdata\r\n' >"
 printf '[Game]\r\nRTP=RPGVX\r\n' >"$fx/xpa/Game.ini"; : >"$fx/xpa/Game.rgssad"
 printf '[Game]\r\nRTP=RPGVX\r\n' >"$fx/vxa/Game.ini"; : >"$fx/vxa/GAME.RGSS2A"
 : >"$fx/2k/RPG_RT.ldb"; : >"$fx/2k/RPG_RT.LMT"
+mkdir -p "$fx/nwdir/Package.nw/js"; : >"$fx/nwdir/Secretary.exe"; : >"$fx/nwdir/nw.dll"
+echo '{"main": "index.html"}' >"$fx/nwdir/Package.nw/package.json"; : >"$fx/nwdir/Package.nw/index.html"
+echo 'Utils.RPGMAKER_VERSION = "1.9.0";' >"$fx/nwdir/Package.nw/js/rmmz_core.js"
 printf '// settings {\n{\n\t// "preloadScript": ["old.rb"],\n\t"windowTitle": "VX",\n}\n' >"$fx/vx/mkxp.json"
 mkdir -p "$fx/pre"; : >"$fx/pre/Game.ini"; : >"$fx/pre/Game.rgss3a"; printf '{ "preloadScript": ["mine.rb"] }\n' >"$fx/pre/mkxp.json"
 : >"$fx/mv/Game.exe"
@@ -44,6 +47,8 @@ check 'the RTP the game names is reported' 'rtp:     Standard, not installed'
 run --info "$fx/vx"; check 'detection ignores letter case' 'engine:  rgss'; check "a game's own mkxp.json is found" "merged with the game's mkxp.json"
 run --info "$fx/vxa"; check 'an archive-only game is detected' 'engine:  rgss'
 run --info "$fx/2k"; check 'RPG Maker 2000/2003 is detected' 'engine:  rm2k'
+run --info "$fx/nwdir"; check 'a package.nw folder is the game' "game:    $fx/nwdir/Package.nw"; check 'and what is in it is detected' 'engine:  mz'
+run --info "$fx/nwdir/Secretary.exe"; check 'also when started from the exe next to it' 'engine:  mz'
 run --info "$fx/none"; check 'an empty folder is not a game' 'engine:  not recognized'
 run --info "$fx/evb"; check 'an Enigma-packed exe is detected' 'engine:  evb'; check 'and named' 'GAME.EXE (Enigma'
 run --info "$fx/exe"; check 'a plain exe is not taken for Enigma' 'engine:  not recognized'
@@ -72,6 +77,8 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	: >"$fx/lib/mkxp-z/scripts/preload/win32_wrap.rb"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'an Enigma-packed game is unpacked and run' "electron got $fx/data/rpgm/unpacked/"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "electron got $fx/nwdir/Package.nw "
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'Electron is started on Wayland' 'args=--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
 	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./rpgm "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'

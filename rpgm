@@ -96,6 +96,8 @@ if [ "$mode" = edit-save ]; then
 fi
 [ -d "$target" ] || target=$(dirname "$target")
 game=$(cd "$target" && pwd -P)
+nw=$(find_ci package.nw)
+[ -z "$nw" ] || [ ! -d "$game/$nw" ] || game=$(cd "$game/$nw" && pwd -P)
 data="${XDG_DATA_HOME:-$HOME/.local/share}/rpgm"
 id=$(printf %s "$game" | md5sum | cut -c1-12)
 unpacked="$data/unpacked/$id"
