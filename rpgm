@@ -24,15 +24,15 @@ evb_exe() {
 
 usage() {
 	cat <<EOF
-Usage: rpgm [-t | -c | -w | -i] [GAME_DIR | GAME.exe]
+Usage: rpgm [-T | -c | -w | -t FILE | -i] [GAME_DIR | GAME.exe]
        rpgm -e SAVE_FILE
 
 Runs a Windows RPG Maker game natively (default: the current directory).
 
-  -t, --test      playtest mode (F9 debug menu, F12 devtools)
+  -T, --test      playtest mode (F9 debug menu, F12 devtools)
   -c, --cheat     F8 opens a cheat menu (MV/MZ/XP/VX/VX Ace)
   -w, --wasd      MV/MZ: WASD moves, E confirms, Q cancels
-  --translate FILE  show FILE's translations ({"text": "translation"});
+  -t, --translate FILE  show FILE's translations ({"text": "translation"});
                   new text is added to it with an empty translation
   -i, --info      show what was detected
   -e, --edit-save MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
@@ -49,10 +49,13 @@ EOF
 mode=run test='' cheat='' wasd='' translate=''
 while [ $# -gt 0 ]; do
 	case $1 in
-	-t | --test) test=1 ;;
+	-T | --test) test=1 ;;
 	-c | --cheat) cheat=1 ;;
 	-w | --wasd) wasd=1 ;;
-	--translate) [ $# -ge 2 ] || die "--translate needs a file"; translate=$2; shift ;;
+	-t | --translate)
+		[ $# -ge 2 ] || die "--translate needs a file"
+		[ ! -d "$2" ] || die "--translate takes a JSON file, not a folder (playtest is -T)"
+		translate=$2; shift ;;
 	-i | --info) mode=info ;;
 	-e | --edit-save) mode=edit-save ;;
 	-h | --help) usage; exit 0 ;;

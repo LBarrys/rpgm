@@ -89,9 +89,10 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/ja en.json" "$fx/packed" 2>&1)
 	check '--translate reaches a packed game, spaces and all' "translate=$fx/my words/ja en.json"
 	out=$(cat "$fx/my words/ja en.json"); check 'and creates the dictionary' '{}'
-	out=$(cd "$fx/my words" && PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$OLDPWD/rpgm" --translate rel.json "$fx/mv" 2>&1)
-	check 'a relative dictionary path is made absolute' "translate=$fx/my words/rel.json"
+	out=$(cd "$fx/my words" && PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$OLDPWD/rpgm" -t rel.json "$fx/mv" 2>&1)
+	check 'a relative dictionary path is made absolute (-t)' "translate=$fx/my words/rel.json"
 	out=$(PATH="$fx/bin:$PATH" sh ./rpgm --translate 2>&1); check '--translate needs a file' 'needs a file'
+	out=$(PATH="$fx/bin:$PATH" sh ./rpgm -t "$fx/mv" 2>&1); check 'the old -t habit (a game folder) gets a hint' 'playtest is -T'
 	out=$(PATH="$fx/bin:$PATH" sh ./rpgm --translate "$fx/nodir/x.json" "$fx/mv" 2>&1); check 'a missing folder is refused' 'no such folder'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --wasd "$fx/packed" 2>&1)
 	check '--wasd reaches the game' 'wasd=1'
@@ -116,9 +117,9 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --cheat "$fx/vxa" 2>&1); check '--cheat reaches XP/VX/VX Ace games' 'cheat=1'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/rgss.json" "$fx/vxa" 2>&1); check '--translate reaches XP/VX/VX Ace games' "translate=$fx/my words/rgss.json"
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --test "$fx/2k" 2>&1)
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm -T "$fx/2k" 2>&1)
 	check 'RPG Maker 2000/2003 runs on EasyRPG, on Wayland' 'easyrpg driver=wayland'
-	check 'with the game folder and playtest mode' "args=--project-path $fx/2k --test-play"
+	check 'with the game folder and playtest mode (-T)' "args=--project-path $fx/2k --test-play"
 	check 'and the installed RTP' "rtp=$fx/data/rpgm/rtp/RPG2000"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/2k.json" "$fx/2k" 2>&1); check '--translate says it cannot help 2000/2003' 'MV/MZ/XP/VX/VX Ace games only'
 	mkdir -p "$fx/mz/save"
