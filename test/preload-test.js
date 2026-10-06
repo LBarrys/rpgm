@@ -29,8 +29,10 @@ const electron = {
 };
 const load = Module._load;
 Module._load = function (request, ...rest) { return request === 'electron' ? electron : load.call(this, request, ...rest); };
-global.window = { addEventListener() {}, location: { reload() {} } };
+global.window = { addEventListener() {}, location: { reload() {} }, module: { exports: {} }, exports: {}, require };
 require('../lib/electron-preload.js');
+is('the page has no module or exports, as in NW.js, so web libraries load as in a browser', [typeof window.module, typeof window.exports], ['undefined', 'undefined']);
+is('but keeps require', typeof window.require, 'function');
 
 const win = window.nw.Window.get();
 calls = [];
