@@ -63,9 +63,9 @@ if command -v node >/dev/null 2>&1; then
 require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', children: [f('package.json', '{}'),
   { name: 'www', children: [f('index.html', ''), { name: 'js', children: [f('rpg_core.js', '')] }] }] }))" "$fx/packed/Game.exe"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR wasd=$RPGM_WASD appdata=$LOCALAPPDATA args=$*"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
+	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR wasd=$RPGM_WASD translate=$RPGM_TRANSLATE appdata=$LOCALAPPDATA args=$*"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER editor=$RPGM_EDITOR pwd=$PWD"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
+	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER editor=$RPGM_EDITOR translate=$RPGM_TRANSLATE pwd=$PWD"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "easyrpg driver=$SDL_VIDEODRIVER rtp=${RPG2K_RTP_PATH:-} args=$*"\n' >"$fx/bin/easyrpg-player" && chmod +x "$fx/bin/easyrpg-player"
 	mkdir -p "$fx/lib/mkxp-z/scripts/preload" "$fx/lib/mkxp-z/stdlib" "$fx/data/rpgm/rtp/Standard" "$fx/data/rpgm/rtp/RPG2000"
@@ -83,6 +83,14 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(cd "$fx/nwdata" && find . -type f); check 'with its Shift-JIS file names decoded' '決定.ogg'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --editor "$fx/packed" 2>&1)
 	check '--editor reaches a packed game after unpacking' 'editor=1'
+	mkdir -p "$fx/my words"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/ja en.json" "$fx/packed" 2>&1)
+	check '--translate reaches a packed game, spaces and all' "translate=$fx/my words/ja en.json"
+	out=$(cat "$fx/my words/ja en.json"); check 'and creates the dictionary' '{}'
+	out=$(cd "$fx/my words" && PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh "$OLDPWD/rpgm" --translate rel.json "$fx/mv" 2>&1)
+	check 'a relative dictionary path is made absolute' "translate=$fx/my words/rel.json"
+	out=$(PATH="$fx/bin:$PATH" sh ./rpgm --translate 2>&1); check '--translate needs a file' 'needs a file'
+	out=$(PATH="$fx/bin:$PATH" sh ./rpgm --translate "$fx/nodir/x.json" "$fx/mv" 2>&1); check 'a missing folder is refused' 'no such folder'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --wasd "$fx/packed" 2>&1)
 	check '--wasd reaches the game' 'wasd=1'
 	check 'Windows folders point into rpgm/windows' "appdata=$fx/data/rpgm/windows/AppData/Local"
@@ -105,10 +113,12 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'a missing RTP is pointed out' "extract it to $fx/data/rpgm/rtp/RPGVX"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --editor "$fx/vxa" 2>&1); check '--editor reaches XP/VX/VX Ace games' 'editor=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/rgss.json" "$fx/vxa" 2>&1); check '--translate reaches XP/VX/VX Ace games' "translate=$fx/my words/rgss.json"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --test "$fx/2k" 2>&1)
 	check 'RPG Maker 2000/2003 runs on EasyRPG, on Wayland' 'easyrpg driver=wayland'
 	check 'with the game folder and playtest mode' "args=--project-path $fx/2k --test-play"
 	check 'and the installed RTP' "rtp=$fx/data/rpgm/rtp/RPG2000"
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/2k.json" "$fx/2k" 2>&1); check '--translate says it cannot help 2000/2003' 'MV/MZ/XP/VX/VX Ace games only'
 	mkdir -p "$fx/mz/save"
 	node -e "process.stdout.write(require('zlib').deflateSync('{\"party\":{\"_gold\":100}}').toString('latin1'))" >"$fx/mz/save/file1.rmmzsave"
 	out=$(EDITOR=true sh ./rpgm --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check '--edit-save writes nothing when nothing changed' 'Unchanged'

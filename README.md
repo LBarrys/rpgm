@@ -18,6 +18,7 @@ rpgm [GAME_DIR | Game.exe]   # default: current directory
 rpgm --test GAME             # playtest
 rpgm --editor GAME           # F8 cheat menu (god mode, no clip, speed, teleport, items...)
 rpgm --wasd GAME             # MV/MZ: WASD moves, E confirms, Q cancels
+rpgm --translate FILE GAME   # show FILE's {"text": "translation"}; new text is added to fill in
 rpgm --edit-save SAVE        # MV/MZ: edit a save as JSON in $EDITOR
 rpgm --info GAME             # show what was detected
 ```
