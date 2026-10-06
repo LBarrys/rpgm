@@ -13,7 +13,14 @@ node_js() {
 	else die "this needs electron (apk add electron) or node"
 	fi
 }
-find_ci() { (cd "$game" && find . -maxdepth 3 -ipath "./$1" 2>/dev/null | head -n 1 | cut -c3-); }
+ci_glob() { printf '%s\n' "$1" | awk '{ for (i = 1; i <= length($0); i++) { c = substr($0, i, 1); u = toupper(c); l = tolower(c); printf "%s", (u != l ? "[" l u "]" : c) } }'; }
+find_ci() {
+	# shellcheck disable=SC2046
+	for f in "$game"/$(ci_glob "$1"); do
+		[ -e "$f" ] && { printf '%s\n' "${f#"$game"/}"; return 0; }
+	done
+	return 0
+}
 has() { [ -n "$(find_ci "$1")" ]; }
 evb_exe() {
 	for f in "$game"/*.[eE][xX][eE]; do
