@@ -24,18 +24,18 @@ evb_exe() {
 
 usage() {
 	cat <<EOF
-Usage: rpgm [-t | -e | -w | -i] [GAME_DIR | GAME.exe]
-       rpgm --edit-save SAVE_FILE
+Usage: rpgm [-t | -c | -w | -i] [GAME_DIR | GAME.exe]
+       rpgm -e SAVE_FILE
 
 Runs a Windows RPG Maker game natively (default: the current directory).
 
   -t, --test      playtest mode (F9 debug menu, F12 devtools)
-  -e, --editor    F8 opens a cheat menu (MV/MZ/XP/VX/VX Ace)
+  -c, --cheat     F8 opens a cheat menu (MV/MZ/XP/VX/VX Ace)
   -w, --wasd      MV/MZ: WASD moves, E confirms, Q cancels
   --translate FILE  show FILE's translations ({"text": "translation"});
                   new text is added to it with an empty translation
   -i, --info      show what was detected
-  --edit-save     MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
+  -e, --edit-save MV/MZ: open a save as JSON in \$EDITOR, write it back on exit
   -h, --help      show this help
   -V, --version   show the version
 
@@ -46,15 +46,15 @@ Environment: RPGM_RGSS_SKIP (shims to leave out), RPGM_MKXPZ_PRELOAD
 EOF
 }
 
-mode=run test='' editor='' wasd='' translate=''
+mode=run test='' cheat='' wasd='' translate=''
 while [ $# -gt 0 ]; do
 	case $1 in
 	-t | --test) test=1 ;;
-	-e | --editor) editor=1 ;;
+	-c | --cheat) cheat=1 ;;
 	-w | --wasd) wasd=1 ;;
 	--translate) [ $# -ge 2 ] || die "--translate needs a file"; translate=$2; shift ;;
 	-i | --info) mode=info ;;
-	--edit-save) mode=edit-save ;;
+	-e | --edit-save) mode=edit-save ;;
 	-h | --help) usage; exit 0 ;;
 	-V | --version) echo "rpgm $VERSION"; exit 0 ;;
 	--) shift; break ;;
@@ -167,7 +167,7 @@ run_electron() {
 
 case $engine in
 mv | mz | nwjs)
-	export RPGM_GAME="$game" RPGM_TEST="$test" RPGM_EDITOR="$editor" RPGM_WASD="$wasd" RPGM_TRANSLATE="$translate"
+	export RPGM_GAME="$game" RPGM_TEST="$test" RPGM_CHEAT="$cheat" RPGM_WASD="$wasd" RPGM_TRANSLATE="$translate"
 	run_electron "$here" ;;
 nwjs-zip | evb)
 	[ "$engine" = evb ] || packed="$game/$(find_ci package.nw)"
@@ -176,7 +176,7 @@ nwjs-zip | evb)
 		node_js "$here/evb.js" "$packed" "$unpacked" || exit 1
 		touch "$unpacked/.rpgm-unpacked"
 	fi
-	exec sh "$self" ${test:+--test} ${editor:+--editor} ${wasd:+--wasd} ${translate:+--translate "$translate"} "$unpacked" ;;
+	exec sh "$self" ${test:+--test} ${cheat:+--cheat} ${wasd:+--wasd} ${translate:+--translate "$translate"} "$unpacked" ;;
 electron-app)
 	app="$game/$(find_ci resources/app.asar)"
 	[ -f "$app" ] || app="$game/$(find_ci resources/app)"
@@ -209,7 +209,7 @@ rgss)
 		printf '{\n\t%s\n}\n' "$keys" >"$conf/mkxp.json" || die "cannot write $conf/mkxp.json"
 	fi
 	cd "$conf"
-	export SDL_VIDEODRIVER=wayland SRCDIR="$game" RPGM_SHIM_DIR="$here/rgss" RPGM_RGSS_VERSION="$rgss" RPGM_EDITOR="$editor" RPGM_TRANSLATE="$translate"
+	export SDL_VIDEODRIVER=wayland SRCDIR="$game" RPGM_SHIM_DIR="$here/rgss" RPGM_RGSS_VERSION="$rgss" RPGM_CHEAT="$cheat" RPGM_TRANSLATE="$translate"
 	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
 rm2k)
 	have easyrpg-player || die "RPG Maker 2000/2003 games need easyrpg-player (apk add easyrpg-player)"

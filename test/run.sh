@@ -63,9 +63,9 @@ if command -v node >/dev/null 2>&1; then
 require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', children: [f('package.json', '{}'),
   { name: 'www', children: [f('index.html', ''), { name: 'js', children: [f('rpg_core.js', '')] }] }] }))" "$fx/packed/Game.exe"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "electron got $RPGM_GAME editor=$RPGM_EDITOR wasd=$RPGM_WASD translate=$RPGM_TRANSLATE appdata=$LOCALAPPDATA args=$*"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
+	printf '#!/bin/sh\necho "electron got $RPGM_GAME cheat=$RPGM_CHEAT wasd=$RPGM_WASD translate=$RPGM_TRANSLATE appdata=$LOCALAPPDATA args=$*"\n' >"$fx/bin/electron" && chmod +x "$fx/bin/electron"
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER editor=$RPGM_EDITOR translate=$RPGM_TRANSLATE pwd=$PWD"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
+	printf '#!/bin/sh\necho "mkxp-z rgss=$RPGM_RGSS_VERSION driver=$SDL_VIDEODRIVER cheat=$RPGM_CHEAT translate=$RPGM_TRANSLATE pwd=$PWD"; cat mkxp.json\n' >"$fx/bin/mkxp-z" && chmod +x "$fx/bin/mkxp-z"
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "easyrpg driver=$SDL_VIDEODRIVER rtp=${RPG2K_RTP_PATH:-} args=$*"\n' >"$fx/bin/easyrpg-player" && chmod +x "$fx/bin/easyrpg-player"
 	mkdir -p "$fx/lib/mkxp-z/scripts/preload" "$fx/lib/mkxp-z/stdlib" "$fx/data/rpgm/rtp/Standard" "$fx/data/rpgm/rtp/RPG2000"
@@ -81,8 +81,10 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/nwdata" sh ./rpgm "$fx/nw" 2>&1)
 	check 'a package.nw game is unpacked without unzip and run' "electron got $fx/nwdata/rpgm/unpacked/"
 	out=$(cd "$fx/nwdata" && find . -type f); check 'with its Shift-JIS file names decoded' '決定.ogg'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --editor "$fx/packed" 2>&1)
-	check '--editor reaches a packed game after unpacking' 'editor=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --cheat "$fx/packed" 2>&1)
+	check '--cheat reaches a packed game after unpacking' 'cheat=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm -c "$fx/mv" 2>&1); check '-c is --cheat' 'cheat=1'
+	out=$(PATH="$fx/bin:$PATH" sh ./rpgm --editor "$fx/mv" 2>&1); check 'the old --editor is gone' 'unknown option'
 	mkdir -p "$fx/my words"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/ja en.json" "$fx/packed" 2>&1)
 	check '--translate reaches a packed game, spaces and all' "translate=$fx/my words/ja en.json"
@@ -112,7 +114,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/xpa" 2>&1); check 'an XP archive-only game runs as RGSS1' 'rgss=1'
 	check 'a missing RTP is pointed out' "extract it to $fx/data/rpgm/rtp/RPGVX"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --editor "$fx/vxa" 2>&1); check '--editor reaches XP/VX/VX Ace games' 'editor=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --cheat "$fx/vxa" 2>&1); check '--cheat reaches XP/VX/VX Ace games' 'cheat=1'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/rgss.json" "$fx/vxa" 2>&1); check '--translate reaches XP/VX/VX Ace games' "translate=$fx/my words/rgss.json"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --test "$fx/2k" 2>&1)
 	check 'RPG Maker 2000/2003 runs on EasyRPG, on Wayland' 'easyrpg driver=wayland'
@@ -122,7 +124,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	mkdir -p "$fx/mz/save"
 	node -e "process.stdout.write(require('zlib').deflateSync('{\"party\":{\"_gold\":100}}').toString('latin1'))" >"$fx/mz/save/file1.rmmzsave"
 	out=$(EDITOR=true sh ./rpgm --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check '--edit-save writes nothing when nothing changed' 'Unchanged'
-	out=$(EDITOR="sed -i s/100/250/" sh ./rpgm --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check '--edit-save writes an edit back' 'Wrote'
+	out=$(EDITOR="sed -i s/100/250/" sh ./rpgm -e "$fx/mz/save/file1.rmmzsave" 2>&1); check '-e (--edit-save) writes an edit back' 'Wrote'
 	out=$(node lib/savejson.js decode "$fx/mz/save/file1.rmmzsave" /dev/stdout); check 'and the save holds it' '"_gold": 250'
 	out=$(ls "$fx/mz/save"); check 'next to a backup of the original' 'file1.rmmzsave.bak'
 	out=$(EDITOR="sed -i s/250/oops,/" sh ./rpgm --edit-save "$fx/mz/save/file1.rmmzsave" 2>&1); check 'a broken edit is not written' 'your edit is kept in'

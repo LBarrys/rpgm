@@ -57,7 +57,7 @@ RpgmShims.load_one(here, 'input_poll')
 
 RpgmShims.load_one(here, 'lenient')
 RpgmShims.load_one(here, 'patches')
-RpgmShims.load_one(here, 'cheats') unless ENV['RPGM_EDITOR'].to_s.empty?
+RpgmShims.load_one(here, 'cheats') unless ENV['RPGM_CHEAT'].to_s.empty?
 RpgmShims.load_one(here, 'translate') unless ENV['RPGM_TRANSLATE'].to_s.empty?
 
 if mkxpz.nil?
