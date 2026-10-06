@@ -3,7 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { respond, mimeOf } = require('../lib/serve.js');
-const { parsePackage, userScripts, wasd } = require('../lib/game.js');
+const { parsePackage, userScripts, wasd, capFps } = require('../lib/game.js');
 
 let failed = 0;
 function is(desc, got, want) {
@@ -70,6 +70,21 @@ const url = p => 'app://game' + p;
   is('WASD moves', [keys[87], keys[65], keys[83], keys[68]].join(), 'up,left,down,right');
   is('E confirms and Q cancels', keys[69] + ',' + keys[81], 'ok,escape');
   is('other keys keep their mapping', keys[13] + ',' + keys[90], 'ok,ok');
+  const loop = (name, updateMain) => {
+    const S = { updates: 0, requests: 0, updateMain, update() { this.updates++; }, requestUpdate() { this.requests++; } };
+    let t = 0;
+    const capped = capFps({ SceneManager: S, Utils: { RPGMAKER_NAME: name } }, () => t);
+    for (let k = 0; k < 144; k++, t += 1000 / 144) S.update();
+    return [capped, S.updates];
+  };
+  is('old MV (no _accumulator) is held to 60 updates a second on a 144 Hz screen', loop('MV', function () { this.updateScene(); }).join(), 'true,60');
+  is('newer MV with its own timestep is left alone', loop('MV', function () { this._accumulator += 1; }).join(), 'false,144');
+  is('MZ is left alone', loop('MZ', function () {}).join(), 'false,144');
+  const at60 = { updates: 0, updateMain() {}, update() { this.updates++; }, requestUpdate() {} };
+  let t60 = 0;
+  capFps({ SceneManager: at60, Utils: { RPGMAKER_NAME: 'MV' } }, () => t60);
+  for (let k = 0; k < 60; k++, t60 += 1000 / 60 + (k % 2 ? 0.4 : -0.4)) at60.update();
+  is('a 60 Hz screen with timing jitter still gets every frame', at60.updates, 60);
 
   const burst = await Promise.all(Array.from({ length: 1000 }, (_, i) =>
     respond(root, url('/img/system/iconset.png'), i % 2 ? 'bytes=0-0' : null).then(x => x.status)));

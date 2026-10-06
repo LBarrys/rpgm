@@ -127,7 +127,8 @@ info)
 	evb) echo "packed:  $(basename "$packed") (Enigma Virtual Box), unpacked on first run to $unpacked" ;;
 	rgss)
 		if have mkxp-z; then echo "runtime: $(command -v mkxp-z)"; else echo "runtime: mkxp-z not installed (./build-mkxp-z.sh)"; fi
-		if [ -n "$(find_ci mkxp.json)" ]; then echo "config:  $(find_ci mkxp.json) (the game's own)"; else echo "config:  written by rpgm to $data/mkxp/$id"; fi
+		echo "config:  written by rpgm to $data/mkxp/$id"
+		[ -z "$(find_ci mkxp.json)" ] || echo "         merged with the game's $(find_ci mkxp.json)"
 		rtp_names | while read -r name; do
 			if [ -d "$rtp/$name" ]; then echo "rtp:     $name, installed"; else echo "rtp:     $name, not installed in $rtp/$name"; fi
 		done ;;
@@ -180,32 +181,25 @@ rgss)
 	case $(printf %s "$scripts" | tr '[:upper:]' '[:lower:]') in
 	*.rxdata | *.rgssad) rgss=1 ;; *.rvdata | *.rgss2a) rgss=2 ;; *) rgss=3 ;;
 	esac
-	if [ -n "$(find_ci mkxp.json)" ]; then
-		echo "rpgm: $game has its own mkxp.json; for rpgm's fixes, add to it:" >&2
-		echo "  \"preloadScript\": [$(json "$here/rgss/all.rb")], \"enableReset\": false" >&2
-		cd "$game"
+	conf="$data/mkxp/$id"
+	mkdir -p "$conf" || die "cannot create $conf"
+	paths=''
+	for name in $(rtp_names); do
+		if [ -d "$rtp/$name" ]; then paths="$paths${paths:+, }$(json "$rtp/$name")"
+		else echo "rpgm: the game names the $name RTP; if graphics or sounds are missing, extract it to $rtp/$name" >&2
+		fi
+	done
+	lib=''
+	[ -z "$pre" ] || [ ! -d "$pre/../../stdlib" ] || lib=$(json "$(cd "$pre/../../stdlib" && pwd -P)")
+	keys="\"gameFolder\": $(json "$game"), \"preloadScript\": [$(json "$here/rgss/all.rb")], \"enableReset\": false, \"RTP\": [$paths], \"rubyLoadpath\": [$lib]"
+	own=$(find_ci mkxp.json)
+	if [ -n "$own" ] && K="$keys," awk '!done && /^[ \t]*\{/ { i = index($0, "{"); $0 = substr($0, 1, i) " " ENVIRON["K"] substr($0, i + 1); done = 1 } { print } END { exit !done }' "$game/$own" >"$conf/mkxp.json"; then
+		! grep -v '^[[:space:]]*//' "$game/$own" | grep -q '"preloadScript"' || echo "rpgm: $own sets its own preloadScript, so rpgm's fixes are left out" >&2
 	else
-		conf="$data/mkxp/$id"
-		mkdir -p "$conf" || die "cannot create $conf"
-		paths=''
-		for name in $(rtp_names); do
-			if [ -d "$rtp/$name" ]; then paths="$paths${paths:+, }$(json "$rtp/$name")"
-			else echo "rpgm: the game names the $name RTP; if graphics or sounds are missing, extract it to $rtp/$name" >&2
-			fi
-		done
-		lib=''
-		[ -z "$pre" ] || [ ! -d "$pre/../../stdlib" ] || lib=$(json "$(cd "$pre/../../stdlib" && pwd -P)")
-		cat >"$conf/mkxp.json" <<-EOF || die "cannot write $conf/mkxp.json"
-		{
-			"gameFolder": $(json "$game"),
-			"preloadScript": [$(json "$here/rgss/all.rb")],
-			"enableReset": false,
-			"RTP": [$paths],
-			"rubyLoadpath": [$lib]
-		}
-		EOF
-		cd "$conf"
+		[ -z "$own" ] || echo "rpgm: cannot read $own; its settings are left out" >&2
+		printf '{\n\t%s\n}\n' "$keys" >"$conf/mkxp.json" || die "cannot write $conf/mkxp.json"
 	fi
+	cd "$conf"
 	export SDL_VIDEODRIVER=wayland SRCDIR="$game" RPGM_SHIM_DIR="$here/rgss" RPGM_RGSS_VERSION="$rgss" RPGM_EDITOR="$editor"
 	if [ -n "$test" ]; then exec mkxp-z test; else exec mkxp-z; fi ;;
 rm2k)

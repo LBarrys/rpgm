@@ -44,6 +44,7 @@ Saves stay in the game folder; everything else is in `~/.local/share/rpgm/`.
 
 - Case-sensitive file names.
 - NW.js APIs, `SharedArrayBuffer`, Steam (stubbed).
+- Old MV games running too fast above 60 Hz.
 - `\` save paths, `%APPDATA%`.
 - XP/VX/VX Ace: Ruby 1.8, Win32API, `.ini` files, known broken plugins.
 

@@ -26,7 +26,8 @@ printf '[Game]\r\nRTP1=Standard\r\nRTP2=\r\nScripts=Data\\Scripts.rxdata\r\n' >"
 printf '[Game]\r\nRTP=RPGVX\r\n' >"$fx/xpa/Game.ini"; : >"$fx/xpa/Game.rgssad"
 printf '[Game]\r\nRTP=RPGVX\r\n' >"$fx/vxa/Game.ini"; : >"$fx/vxa/GAME.RGSS2A"
 : >"$fx/2k/RPG_RT.ldb"; : >"$fx/2k/RPG_RT.LMT"
-echo '{}' >"$fx/vx/mkxp.json"
+printf '// settings {\n{\n\t// "preloadScript": ["old.rb"],\n\t"windowTitle": "VX",\n}\n' >"$fx/vx/mkxp.json"
+mkdir -p "$fx/pre"; : >"$fx/pre/Game.ini"; : >"$fx/pre/Game.rgss3a"; printf '{ "preloadScript": ["mine.rb"] }\n' >"$fx/pre/mkxp.json"
 : >"$fx/mv/Game.exe"
 printf 'MZ\000\000.enig\000ma1' >"$fx/exe/Game.exe"
 printf 'MZ\000\000.enigma1\000' >"$fx/evb/GAME.EXE"
@@ -40,7 +41,7 @@ run --info "$fx/zip"; check 'package.nw is detected' 'engine:  nwjs-zip'
 run --info "$fx/eapp"; check 'Electron games are detected' 'engine:  electron-app'
 run --info "$fx/xp"; check 'XP is detected' 'engine:  rgss'; check 'rpgm writes the config' 'config:  written by rpgm'
 check 'the RTP the game names is reported' 'rtp:     Standard, not installed'
-run --info "$fx/vx"; check 'detection ignores letter case' 'engine:  rgss'; check "a game's own mkxp.json is found" 'config:  mkxp.json'
+run --info "$fx/vx"; check 'detection ignores letter case' 'engine:  rgss'; check "a game's own mkxp.json is found" "merged with the game's mkxp.json"
 run --info "$fx/vxa"; check 'an archive-only game is detected' 'engine:  rgss'
 run --info "$fx/2k"; check 'RPG Maker 2000/2003 is detected' 'engine:  rm2k'
 run --info "$fx/none"; check 'an empty folder is not a game' 'engine:  not recognized'
@@ -95,7 +96,11 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check "and mkxp-z's Ruby standard library" "\"rubyLoadpath\": [\"$fx/lib/mkxp-z/stdlib\"]"
 	out=$(ls "$fx/xp"); check 'the game folder is left untouched' 'Data'; case $out in *mkxp.json*) fail=$((fail + 1)); echo "FAIL rpgm wrote into the game folder" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vx" 2>&1); check 'VX Ace runs as RGSS3' 'rgss=3'
-	check "a game's own mkxp.json is used from the game folder" "pwd=$fx/vx"; check 'with a hint to load the shims' 'has its own mkxp.json'
+	check "a game with its own mkxp.json still starts from rpgm's config" "pwd=$fx/data/rpgm/mkxp/"
+	check "which keeps the game's settings" '"windowTitle": "VX"'; check 'and adds the shims' 'rgss/all.rb"]'
+	check 'comments before the object are left alone' '// settings {'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/pre" 2>&1); check "a game's own preloadScript wins, and rpgm says so" 'sets its own preloadScript'
+	check 'its config is still written' '"preloadScript": ["mine.rb"]'
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/xpa" 2>&1); check 'an XP archive-only game runs as RGSS1' 'rgss=1'
 	check 'a missing RTP is pointed out' "extract it to $fx/data/rpgm/rtp/RPGVX"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
