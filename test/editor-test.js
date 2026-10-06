@@ -86,4 +86,105 @@ is('a numeric variable stays a number', w.$gameVariables.value(1), 42);
 is('text stays text', w.$gameVariables.value(2), 'Ann');
 is('JSON values are parsed', value('[1,2]'), [1, 2]);
 
+class BattlerBase {
+  constructor(id) { Object.assign(this, { id, _hp: 10, _mp: 5, _tp: 0, mhp: 100, mmp: 50, states: [] }); }
+  setHp(n) { this._hp = n; }
+  setMp(n) { this._mp = n; }
+  setTp(n) { this._tp = n; }
+  maxTp() { return 100; }
+  gainHp(n) { this.setHp(this._hp + n); }
+  paySkillCost(skill) { this._mp -= skill.mp; }
+  deathStateId() { return 1; }
+  recoverAll() { this._hp = this.mhp; this._mp = this.mmp; }
+}
+class Battler extends BattlerBase { addState(id) { this.states.push(id); } }
+class GameActor extends Battler { actorId() { return this.id; } }
+class Player {
+  constructor() { Object.assign(this, { _through: false, x: 3, y: 4, dashing: false, moved: null }); }
+  isThrough() { return this._through; }
+  canEncounter() { return true; }
+  realMoveSpeed() { return 4 + (this.dashing ? 1 : 0); }
+  isDashing() { return this.dashing; }
+  direction() { return 2; }
+  reserveTransfer(...args) { this.moved = args; }
+}
+class SceneBattle {}
+class SceneMap {}
+const frames = [];
+const store = new Map();
+const hero = new GameActor(7);
+const g = {
+  Game_BattlerBase: BattlerBase, Game_Battler: Battler, Game_Actor: GameActor, Game_Player: Player,
+  Scene_Battle: SceneBattle, Scene_Map: SceneMap, Scene_Save: 'save', Scene_Load: 'load',
+  SceneManager: {
+    _scene: new SceneMap(), pushed: null,
+    updateScene() { frames.push('scene'); }, updateInputData() { frames.push('input'); }, changeScene() {},
+    push(s) { this.pushed = s; },
+  },
+  BattleManager: { _phase: 'turn', result: null, processVictory() { this.result = 'won'; }, processAbort() { this.result = 'aborted'; } },
+  SoundManager: { playEscape() {} },
+  $gameParty: { members: () => [hero], performEscape() {} },
+  $gameActors: { actor: () => hero },
+  $gameTroop: { members: () => [Object.assign(new Battler(9), { addNewState(id) { this.states.push(id); }, performCollapse() { this.collapsed = true; } })] },
+  $gameMap: { mapId: () => 5 },
+  $gamePlayer: new Player(),
+  $dataMapInfos: [null, { id: 1, name: 'Town' }, null, { id: 3, name: '' }, null, { id: 5, name: 'Cave' }],
+  localStorage: { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
+};
+const c = model(g);
+c.cheats();
+c.cheats();
+c.setGod(7, true);
+hero.gainHp(-500);
+is('god mode: damage leaves HP full', hero._hp, 100);
+hero.paySkillCost({ mp: 20 });
+is('god mode: skills cost nothing', hero._mp, 50);
+hero.addState(1);
+hero.addState(4);
+is('god mode: death is refused, other states are not', hero.states, [4]);
+c.setGod(7, false);
+hero.gainHp(-30);
+is('god mode off: damage counts again', hero._hp, 70);
+const enemy = new Battler(3);
+enemy.gainHp(-5);
+is('enemies are never protected', enemy._hp, 5);
+const pl = g.$gamePlayer;
+c.setCheat('noclip', true);
+is('no clip lets the player through walls', pl.isThrough(), true);
+c.setCheat('noclip', false);
+is('and can be turned off', pl.isThrough(), false);
+c.setCheat('noEncounters', true);
+is('random battles can be turned off', pl.canEncounter(), false);
+c.setCheat('move', 6);
+pl.dashing = true;
+is('move speed is set, dashing still adds one', pl.realMoveSpeed(), 7);
+c.setCheat('move', 0);
+is('move speed 0 keeps the game speed', pl.realMoveSpeed(), 5);
+c.setCheat('speed', 2);
+g.SceneManager.updateScene();
+is('game speed 2 runs two frames, reading input between them', frames, ['scene', 'input', 'scene']);
+frames.length = 0;
+c.setCheat('speed', 0.5);
+g.SceneManager.updateScene();
+g.SceneManager.updateScene();
+is('game speed 0.5 runs every other frame', frames, ['scene']);
+c.setCheat('speed', 1);
+is('hooks are installed once', (frames.length = 0, g.SceneManager.updateScene(), frames), ['scene']);
+is('battle actions need a battle', [c.win(), c.escape()], [false, false]);
+g.SceneManager._scene = new SceneBattle();
+is('win kills and collapses every enemy', [c.win(), g.$gameTroop.members().length > 0], [true, true]);
+is('then ends the battle as a victory', g.BattleManager.result, 'won');
+is('escape ends it as an escape', [c.escape(), g.BattleManager.result, g.BattleManager._escaped], [true, 'aborted', true]);
+is('saving is refused outside the map', c.open('save'), false);
+g.SceneManager._scene = new SceneMap();
+is('saving opens the save screen on the map', [c.open('save'), g.SceneManager.pushed], [true, 'save']);
+is('maps are listed by name', c.maps().map(e => e.name), ['Town', 'Cave']);
+is('teleport refuses a missing map', c.teleport(2, 0, 0), false);
+is('teleport reserves a transfer facing the same way', [c.teleport(1, 8, 9), pl.moved], [true, [1, 8, 9, 2, 0]]);
+c.remember('Inn');
+is('a spot is remembered with its map and position', c.spots(), [{ name: 'Inn', mapId: 5, x: 3, y: 4 }]);
+is('and kept in local storage', JSON.parse(store.get('rpgm-editor-spots')).length, 1);
+c.forget(0);
+is('and forgotten', c.spots(), []);
+
 process.exit(failed ? 1 : 0);

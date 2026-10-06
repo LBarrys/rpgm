@@ -30,7 +30,7 @@ Usage: rpgm [-t | -e | -w | -i] [GAME_DIR | GAME.exe]
 Runs a Windows RPG Maker game natively (default: the current directory).
 
   -t, --test      playtest mode (F9 debug menu, F12 devtools)
-  -e, --editor    MV/MZ: F8 opens an editor for gold, items, actors, switches
+  -e, --editor    MV/MZ: F8 opens a cheat menu and editor
   -w, --wasd      MV/MZ: WASD moves, E confirms, Q cancels
   -i, --info      show what was detected
   --edit-save     MV/MZ: open a save as JSON in \$EDITOR, write it back on exit

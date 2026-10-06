@@ -16,7 +16,7 @@ apk add easyrpg-player   # 2000/2003
 ```sh
 rpgm [GAME_DIR | Game.exe]   # default: current directory
 rpgm --test GAME             # playtest
-rpgm --editor GAME           # MV/MZ: F8 edits gold, items, actors, switches
+rpgm --editor GAME           # MV/MZ: F8 cheat menu (god mode, no clip, speed, teleport, items...)
 rpgm --wasd GAME             # MV/MZ: WASD moves, E confirms, Q cancels
 rpgm --edit-save SAVE        # MV/MZ: edit a save as JSON in $EDITOR
 rpgm --info GAME             # show what was detected
@@ -54,8 +54,11 @@ Saves stay in the game folder; everything else is in `~/.local/share/rpgm/`.
 ## Credits
 
 Based on [rpgmakermlinux-cicpoffs](https://github.com/bakustarver/rpgmakermlinux-cicpoffs)
-(bakustarver), with ideas from [Kawariki](https://github.com/Orochimarufan/Kawariki) (Taeyeon Mori)
-and [rmse](https://github.com/nathan-b/rmse) (Nathan Baker). `lib/evb.js` ports
+(bakustarver), with ideas from [Kawariki](https://github.com/Orochimarufan/Kawariki) (Taeyeon Mori),
+[rmse](https://github.com/nathan-b/rmse) (Nathan Baker) and the cheat menus of
+[emerladCoder](https://github.com/emerladCoder/RPG-Maker-MV-Cheat-Menu-Plugin),
+[paramonos](https://github.com/paramonos/RPG-Maker-MV-MZ-Cheat-UI-Plugin) and
+[yeetay233](https://github.com/yeetay233/rpgm-cheatmenu). `lib/evb.js` ports
 [evbunpack](https://github.com/mos9527/evbunpack) (mos9527, Apache-2.0) and aplib (Sandor Nemes,
 GPL-3.0). Runs on [mkxp-z](https://github.com/mkxp-z/mkxp-z), extending its `win32_wrap.rb` and
 `kgl2_wrap.rb` (Ancurio, Splendide Imaginarius, white-axe), and
