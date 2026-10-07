@@ -50,7 +50,9 @@ Games run on Wayland only. RTPs go in ~/.local/share/rpgm/rtp/ (RPG Maker
 2000/2003: RPG2000, RPG2003; XP: Standard; VX: RPGVX; VX Ace: RPGVXAce).
 Environment: RPGM_RGSS_SKIP (shims to leave out), RPGM_MKXPZ_PRELOAD
 (mkxp-z's scripts/preload, if not found), RPGM_YJIT=1 (XP/VX/VX Ace: try
-Ruby's JIT compiler; experimental, x86-64 only).
+Ruby's JIT compiler; experimental, x86-64 only), RPGM_TRANSLATOR (with -t: a
+command that reads text on stdin and prints its translation, used to fill
+in empty translations, e.g. 'trans -b :en').
 EOF
 }
 

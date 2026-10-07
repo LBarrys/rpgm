@@ -1,4 +1,51 @@
 module RpgmTranslate
+  # Fills in empty translations one at a time with a command that reads the
+  # text on stdin and prints its translation; polled every frame, never waited
+  # on, and stopped at the first failure.
+  class Machine
+    attr_reader :done
+
+    def initialize(cmd)
+      @cmd = cmd
+      @tried = {}
+      @queue = []
+      @done = []
+    end
+
+    def want(dict)
+      dict.each { |k, v| next unless v.empty? && !@tried[k]; @tried[k] = true; @queue << k }
+    end
+
+    def poll
+      return if @off
+      return start unless @io
+      chunk = @io.read_nonblock(65536, exception: false)
+      return if chunk == :wait_readable
+      return @out << chunk if chunk
+      @io.close
+      v = @out.force_encoding(Encoding::UTF_8).sub(/\r?\n\z/, '')
+      if !$?.success? || !v.valid_encoding?
+        @off = true
+        $stdout.puts 'rpgm: machine translation stopped: the command failed'
+      elsif !v.strip.empty? && v != @text
+        @done << [@text, v]
+      end
+      @io = nil
+    end
+
+    def start
+      return if @queue.empty?
+      @text = @queue.shift
+      @out = ''.b
+      @io = IO.popen(@cmd, 'r+b')
+      @io.write(@text.b)
+      @io.close_write
+    rescue SystemCallError, IOError => e
+      @off = true
+      $stdout.puts "rpgm: machine translation stopped: #{e.message}"
+    end
+  end
+
   PAIR = /\G\s*"((?:[^"\\]|\\.)*)"\s*:\s*"((?:[^"\\]|\\.)*)"\s*(,|\})/m
   ESCAPES = { 'n' => "\n", 't' => "\t", 'r' => "\r", 'b' => "\b", 'f' => "\f", '/' => '/', '\\' => '\\', '"' => '"' }.freeze
 
@@ -48,8 +95,9 @@ module RpgmTranslate
       File.rename("#{file}.rpgm-tmp", file)
     end
 
-    def start(file)
+    def start(file, cmd = nil)
       @file = file
+      @mt = Machine.new(cmd) if cmd && !cmd.empty?
       @dict = read(file)
       @outputs = @dict.values.reject(&:empty?).to_h { |v| [v, true] }
       @fresh = []
@@ -72,23 +120,32 @@ module RpgmTranslate
       s
     end
 
+    def learn(k, v)
+      return if v.empty?
+      @dict[k] = v
+      @outputs[v] = true
+    end
+
     def sync
       mtime = (File.mtime(@file) rescue nil)
-      return if @fresh.empty? && mtime == @mtime
+      done = @mt ? @mt.done : []
+      return if @fresh.empty? && done.empty? && mtime == @mtime
       disk = (read(@file) rescue nil)
       return unless disk
-      disk.each { |k, v| next if v.empty?; @dict[k] = v; @outputs[v] = true }
-      added = @fresh.reject { |k| disk.key?(k) }
+      disk.each { |k, v| learn(k, v) }
+      changed = false
+      @fresh.each { |k| next if disk.key?(k); disk[k] = ''; changed = true }
       @fresh.clear
-      unless added.empty?
-        added.each { |k| disk[k] = '' }
-        write(@file, disk)
-      end
+      done.each { |k, v| next unless disk[k] == ''; disk[k] = v; learn(k, v); changed = true }
+      done.clear
+      write(@file, disk) if changed
+      @mt.want(disk) if @mt
       @mtime = (File.mtime(@file) rescue nil)
     end
 
     def frame
       install
+      @mt.poll if @mt
       @frames += 1
       sync if (@frames % 120).zero?
     end
@@ -134,7 +191,7 @@ end
 file = ENV['RPGM_TRANSLATE'].to_s
 unless file.empty?
   begin
-    RpgmTranslate.start(file)
+    RpgmTranslate.start(file, ENV['RPGM_TRANSLATOR'])
     RpgmTranslate.hook_bitmap
     module Input
       class << self

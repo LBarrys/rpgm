@@ -93,4 +93,24 @@ out = IO.popen({ 'RPGM_TRANSLATE' => file, 'RPGM_RGSS_VERSION' => V.to_s },
                ['ruby', '-e', "class Bitmap; end; module Input; def self.update; end; end; load #{File.expand_path('../lib/rgss/translate.rb', __dir__).inspect}"], err: [:child, :out], &:read)
 is('a bad file at start turns translation off and says so', out.include?('translation is off'), true)
 
+if V == 3
+  File.write(file, %({"はい": "Yes", "いいえ": ""}))
+  RpgmTranslate.start(file, "sed 's/^/EN:/'")
+  RpgmTranslate.tr('こんにちは')
+  1000.times do
+    Input.update
+    break if File.read(file, encoding: 'UTF-8').scan('EN:').size == 2
+    sleep 0.005
+  end
+  is('empty entries are filled in by the command, without waiting on it',
+     RpgmTranslate.read(file), { 'はい' => 'Yes', 'いいえ' => 'EN:いいえ', 'こんにちは' => 'EN:こんにちは' })
+  is('and shown right away', RpgmTranslate.tr('こんにちは'), 'EN:こんにちは')
+
+  File.write(file, %({"a": ""}))
+  out = IO.popen({ 'RPGM_TRANSLATE' => file, 'RPGM_TRANSLATOR' => 'exit 3', 'RPGM_RGSS_VERSION' => '3' },
+                 ['ruby', '-e', "class Bitmap; def draw_text(*a); end; end; module Input; def self.update; end; end; load #{File.expand_path('../lib/rgss/translate.rb', __dir__).inspect}; 200.times { Input.update; sleep 0.005 }"], err: [:child, :out], &:read)
+  is('a failing command stops machine translation, saying so once', out.scan('machine translation stopped').size, 1)
+  is('and leaves the file alone', File.read(file), %({"a": ""}))
+end
+
 exit($failed.zero? ? 0 : 1)

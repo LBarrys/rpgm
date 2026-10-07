@@ -19,6 +19,7 @@ rpgm --test GAME             # playtest
 rpgm --cheat GAME            # F8 cheat menu (god mode, no clip, speed, teleport, items...)
 rpgm --wasd GAME             # MV/MZ: WASD moves, E confirms, Q cancels
 rpgm --translate FILE GAME   # show FILE's {"text": "translation"}; new text is added to fill in
+RPGM_TRANSLATOR='trans -b :en' rpgm -t FILE GAME   # machine-translate empty entries (apk add translate-shell)
 rpgm --edit-save SAVE        # MV/MZ: edit a save as JSON in $EDITOR
 rpgm --info GAME             # show what was detected
 ```

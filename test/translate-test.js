@@ -2,7 +2,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { read, translator, sync, install } = require('../lib/translate.js');
+const { read, translator, machine, sync, install } = require('../lib/translate.js');
 
 let failed = 0;
 function is(desc, got, want) {
@@ -72,5 +72,37 @@ is('names are translated; message pieces and numbers are drawn as they are', dra
 hooked.flush();
 is('message pieces are not recorded as new text', Object.keys(disk()), ['こんにちは', '勇者']);
 
-fs.rmSync(dir, { recursive: true, force: true });
-process.exit(failed ? 1 : 0);
+const until = async ok => { for (let i = 0; i < 500 && !ok(); i++) await new Promise(r => setTimeout(r, 10)); };
+(async () => {
+  fs.writeFileSync(file, '{"はい": "Yes", "いいえ": ""}');
+  const mt = machine("sed 's/^/EN:/'");
+  const m = translator(read(file));
+  const st = { mtime: 0 };
+  m.tr('こんにちは'); m.tr('勇者');
+  sync(file, m, st, mt);
+  await until(() => mt.done.length === 3);
+  fs.writeFileSync(file, '{"はい": "Yes", "いいえ": "", "こんにちは": "", "勇者": "Hero"}');
+  fs.utimesSync(file, new Date(), new Date(Date.now() + 5000));
+  sync(file, m, st, mt);
+  is('empty entries are filled in by the command; a translation typed meanwhile wins', disk(), { はい: 'Yes', いいえ: 'EN:いいえ', こんにちは: 'EN:こんにちは', 勇者: 'Hero' });
+  is('and shown right away', [m.tr('こんにちは'), m.tr('勇者')], ['EN:こんにちは', 'Hero']);
+  is('and not recorded as new text', m.fresh, []);
+  m.tr('さようなら');
+  sync(file, m, st, mt);
+  await until(() => mt.done.length === 1);
+  sync(file, m, st, mt);
+  is('new text seen later is filled in too', disk().さようなら, 'EN:さようなら');
+
+  const errors = [], error = console.error;
+  console.error = e => errors.push(e);
+  const bad = machine('echo no network >&2; exit 3');
+  bad.want({ a: '', b: '' });
+  await until(() => errors.length);
+  await new Promise(r => setTimeout(r, 100));
+  console.error = error;
+  is('a failing command stops machine translation once, saying why', errors, ['rpgm: machine translation stopped: no network']);
+  is('and fills in nothing', bad.done, []);
+
+  fs.rmSync(dir, { recursive: true, force: true });
+  process.exit(failed ? 1 : 0);
+})();
