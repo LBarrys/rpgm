@@ -253,7 +253,7 @@ module RpgmCheats
   end
 
   class Menu
-    ROW = 22
+    ROW = 26
 
     def initialize
       @pages = [[:main, 0, 0]]
@@ -426,7 +426,7 @@ module RpgmCheats
       b = @sprite.bitmap
       b.clear
       b.fill_rect(0, 0, b.width, b.height, Color.new(10, 10, 20, 220))
-      b.font.size = 18
+      b.font.size = 22
       name, at, top = @pages.last
       title = name == :main ? 'Cheats' : name
       b.draw_text(8, 0, b.width - 16, ROW, "#{title}  (arrows, Shift: x10, Enter, Esc: back, F8: close)")
