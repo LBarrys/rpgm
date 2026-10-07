@@ -2,7 +2,7 @@ module RpgmCheats
   SPEEDS = [0.5, 1, 2, 3, 4].freeze
 
   class << self
-    attr_accessor :god, :noclip, :no_encounters, :move, :speed, :spots, :open
+    attr_accessor :god, :noclip, :no_encounters, :speed, :spots, :open
 
     def rgss
       v = ENV['RPGM_RGSS_VERSION'].to_i
@@ -47,7 +47,6 @@ module RpgmCheats
   self.god = []
   self.noclip = false
   self.no_encounters = false
-  self.move = 0
   self.speed = 1
   self.spots = []
 
@@ -104,10 +103,7 @@ module RpgmCheats
 
   def self.frame
     return if open || !install
-    if move > 0 && $game_player
-      @move_was ||= $game_player.instance_variable_get(:@move_speed)
-      $game_player.instance_variable_set(:@move_speed, move)
-    end
+    $game_player.instance_variable_set(:@move_speed, move) if move > 0
     Menu.new.run if $game_party && Input.trigger?(Input::F8)
   end
 
@@ -116,11 +112,24 @@ module RpgmCheats
     actor.recover_all if on
   end
 
+  # Kept on the player, so it is saved with the game.
+  def self.move
+    ($game_player && $game_player.instance_variable_get(:@rpgm_move)) || 0
+  end
+
   def self.set_move(n)
-    self.move = [[n, 0].max, 6].min
-    return unless move.zero? && $game_player && @move_was
-    $game_player.instance_variable_set(:@move_speed, @move_was)
-    @move_was = nil
+    pl = $game_player
+    return unless pl
+    n = [[n, 0].max, 6].min
+    if n > 0
+      pl.instance_variable_set(:@rpgm_move_was, pl.instance_variable_get(:@move_speed)) if move.zero?
+      pl.instance_variable_set(:@rpgm_move, n)
+    elsif move > 0
+      was = pl.instance_variable_get(:@rpgm_move_was)
+      pl.instance_variable_set(:@move_speed, was) if was
+      pl.instance_variable_set(:@rpgm_move, nil)
+      pl.instance_variable_set(:@rpgm_move_was, nil)
+    end
   end
 
   def self.set_speed(n)

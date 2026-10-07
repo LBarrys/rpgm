@@ -215,6 +215,15 @@ is('random battles stop', [$game_player.encounter_count, $game_player.encounter]
 play(*to('Move speed (0: normal)'), [:RIGHT, :SHIFT])
 Input.update
 is('move speed is capped at 6 and kept each frame', $game_player.move_speed, 6)
+playing = $game_player
+$game_player = Marshal.load(Marshal.dump(playing))
+playing.instance_variable_set(:@move_speed, 1)
+2.times { Input.update }
+is('move speed is saved with the game', [$game_player.move_speed, playing.move_speed], [6, 1])
+$game_player = Game_Player.new
+Input.update
+is('a new game starts at normal speed', $game_player.move_speed, 4)
+$game_player = Marshal.load(Marshal.dump(playing))
 play(*to('Move speed (0: normal)'), [:LEFT, :SHIFT])
 is('move speed 0 gives the game its speed back', $game_player.move_speed, 4)
 play(*to('Game speed'), [:RIGHT], [:RIGHT])
