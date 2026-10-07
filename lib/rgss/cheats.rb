@@ -342,7 +342,8 @@ module RpgmCheats
         list = page(name)
         if name != :main && Input.respond_to?(:text_input=)
           q = @query[name].to_s
-          list = list.select { |r| r[:label].to_s.downcase.include?(q.downcase) } unless q.empty?
+          d = q.downcase
+          list = list.select { |r| r[:label].to_s.downcase.include?(d) || r[:value].to_s.downcase == d } unless q.empty?
           list.unshift(entry("Search: #{q}#{'_' if @typing}", nil, ok: -> { type(true) }))
         end
         list
@@ -353,7 +354,7 @@ module RpgmCheats
       @typing = on
       Input.gets
       Input.text_input = on
-      @note = on ? 'Type to search. Enter: done, Esc: clear.' : ''
+      @note = on ? 'Type a name or an exact value. Enter: done, Esc: clear.' : ''
     end
 
     def typing

@@ -258,6 +258,10 @@ is('text input is off once the menu closes', Input.text_input, false)
 play(*to('Items >'), [:C], [:C], ['zz'], [:ESCAPE], [:DOWN], [:DOWN], [:RIGHT])
 ether = V == 1 ? $game_party.store[['item', 3]] : $game_party.store[$data_items[3]]
 is('Esc clears the search and shows everything again', ether, 1)
+play(*to('Items >'), [:C], [:C], ['99'], [:RETURN])
+is('search finds an item by its exact count', [$sprite.bitmap.texts.include?($data_items[1].name), $sprite.bitmap.texts.include?('Ether')], [true, false])
+play(*to('Variables >'), [:C], [:C], ['15'], [:RETURN])
+is('and a variable by its exact value', $sprite.bitmap.texts.grep(/\A0001 /).size, 1)
 play(*to('Win battle'), [:C])
 is('win battle needs a battle', $game_troop.members.map(&:hp), [100, 100])
 self.scene = Scene_Battle.new
