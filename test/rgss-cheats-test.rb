@@ -230,6 +230,14 @@ play(*to('Game speed'), [:RIGHT], [:RIGHT])
 is('game speed raises the frame rate', Graphics.frame_rate, (V == 1 ? 40 : 60) * 3)
 play(*to('Game speed'), [:LEFT], [:LEFT], [:LEFT])
 is('and lowers it to half', Graphics.frame_rate, (V == 1 ? 20 : 30))
+C.set_god(hero, true)
+save = Marshal.dump($game_player)
+$game_player = Game_Player.new
+Input.update
+is('a new game starts with every cheat off', [C.god, C.noclip, C.no_encounters, Graphics.frame_rate], [[], false, false, V == 1 ? 40 : 60])
+$game_player = Marshal.load(save)
+Input.update
+is('a save brings its cheats back', [C.god, C.noclip, C.no_encounters, Graphics.frame_rate], [[1], true, true, V == 1 ? 20 : 30])
 play(*to('Items >'), [:C], [:DOWN], *[[:RIGHT, :SHIFT]] * 11, [:B], [:DOWN], [:C], [:DOWN], [:RIGHT])
 count = V == 1 ? [$game_party.store[['item', 1]], $game_party.store[['weapon', 1]]] : [$game_party.store[$data_items[1]], $game_party.store[$data_weapons[1]]]
 is('items are capped at 99, weapons are their own list', count, [99, 1])

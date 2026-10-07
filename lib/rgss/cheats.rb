@@ -2,7 +2,7 @@ module RpgmCheats
   SPEEDS = [0.5, 1, 2, 3, 4].freeze
 
   class << self
-    attr_accessor :god, :noclip, :no_encounters, :speed, :spots, :open
+    attr_accessor :spots, :open
 
     def rgss
       v = ENV['RPGM_RGSS_VERSION'].to_i
@@ -44,10 +44,6 @@ module RpgmCheats
     end
   end
 
-  self.god = []
-  self.noclip = false
-  self.no_encounters = false
-  self.speed = 1
   self.spots = []
 
   module Actor
@@ -104,17 +100,54 @@ module RpgmCheats
   def self.frame
     return if open || !install
     $game_player.instance_variable_set(:@move_speed, move) if move > 0
+    apply_speed
     Menu.new.run if $game_party && Input.trigger?(Input::F8)
   end
 
-  def self.set_god(actor, on)
-    on ? god.push(actor.id).uniq! : god.delete(actor.id)
-    actor.recover_all if on
+  # Kept on the player, so the cheats are saved with the game.
+  def self.saved
+    ($game_player && $game_player.instance_variable_get(:@rpgm_cheats)) || {}
   end
 
-  # Kept on the player, so it is saved with the game.
+  def self.keep(key, v)
+    return unless $game_player
+    s = saved.dup
+    v ? (s[key] = v) : s.delete(key)
+    $game_player.instance_variable_set(:@rpgm_cheats, s.empty? ? nil : s)
+  end
+
+  def self.god
+    saved[:god] || []
+  end
+
+  def self.noclip
+    !!saved[:noclip]
+  end
+
+  def self.noclip=(on)
+    keep(:noclip, on)
+  end
+
+  def self.no_encounters
+    !!saved[:no_encounters]
+  end
+
+  def self.no_encounters=(on)
+    keep(:no_encounters, on)
+  end
+
   def self.move
-    ($game_player && $game_player.instance_variable_get(:@rpgm_move)) || 0
+    saved[:move] || 0
+  end
+
+  def self.speed
+    saved[:speed] || 1
+  end
+
+  def self.set_god(actor, on)
+    ids = on ? (god + [actor.id]).uniq : god - [actor.id]
+    keep(:god, ids.empty? ? nil : ids)
+    actor.recover_all if on
   end
 
   def self.set_move(n)
@@ -122,20 +155,26 @@ module RpgmCheats
     return unless pl
     n = [[n, 0].max, 6].min
     if n > 0
-      pl.instance_variable_set(:@rpgm_move_was, pl.instance_variable_get(:@move_speed)) if move.zero?
-      pl.instance_variable_set(:@rpgm_move, n)
+      keep(:move_was, pl.instance_variable_get(:@move_speed)) if move.zero?
+      keep(:move, n)
     elsif move > 0
-      was = pl.instance_variable_get(:@rpgm_move_was)
+      was = saved[:move_was]
       pl.instance_variable_set(:@move_speed, was) if was
-      pl.instance_variable_set(:@rpgm_move, nil)
-      pl.instance_variable_set(:@rpgm_move_was, nil)
+      keep(:move, nil)
+      keep(:move_was, nil)
     end
   end
 
   def self.set_speed(n)
+    keep(:speed, n == 1 ? nil : n)
+    apply_speed
+  end
+
+  def self.apply_speed
+    return if speed == (@applied || 1)
     @base_rate ||= Graphics.frame_rate
-    self.speed = n
-    Graphics.frame_rate = [(@base_rate * n).round, 1].max
+    Graphics.frame_rate = [(@base_rate * speed).round, 1].max
+    @applied = speed
   end
 
   def self.heal
