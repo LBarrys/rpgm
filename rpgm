@@ -31,13 +31,13 @@ evb_exe() {
 
 usage() {
 	cat <<EOF
-Usage: rpgm [-T | -c | -w | -t FILE | -i] [GAME_DIR | GAME.exe]
+Usage: rpgm [-T | -C | -w | -t FILE | -i] [GAME_DIR | GAME.exe]
        rpgm -e SAVE_FILE
 
 Runs a Windows RPG Maker game natively (default: the current directory).
 
   -T, --test      playtest mode (F9 debug menu, F12 devtools)
-  -c, --cheat     F8 opens a cheat menu (MV/MZ/XP/VX/VX Ace)
+  -C, --no-cheat  turn off the F8 cheat menu (MV/MZ/XP/VX/VX Ace; on by default)
   -w, --wasd      MV/MZ: WASD moves, E confirms, Q cancels
   -t, --translate FILE  show FILE's translations ({"text": "translation"});
                   new text is added to it with an empty translation
@@ -56,11 +56,12 @@ in empty translations, e.g. 'trans -b :en').
 EOF
 }
 
-mode=run test='' cheat='' wasd='' translate=''
+mode=run test='' cheat=1 nocheat='' wasd='' translate=''
 while [ $# -gt 0 ]; do
 	case $1 in
 	-T | --test) test=1 ;;
 	-c | --cheat) cheat=1 ;;
+	-C | --no-cheat) cheat='' ;;
 	-w | --wasd) wasd=1 ;;
 	-t | --translate)
 		[ $# -ge 2 ] || die "--translate needs a file"
@@ -191,7 +192,8 @@ nwjs-zip | evb)
 		node_js "$here/evb.js" "$packed" "$unpacked" || exit 1
 		touch "$unpacked/.rpgm-unpacked"
 	fi
-	exec sh "$self" ${test:+--test} ${cheat:+--cheat} ${wasd:+--wasd} ${translate:+--translate "$translate"} "$unpacked" ;;
+	[ -n "$cheat" ] || nocheat=1
+	exec sh "$self" ${test:+--test} ${nocheat:+--no-cheat} ${wasd:+--wasd} ${translate:+--translate "$translate"} "$unpacked" ;;
 electron-app)
 	app="$game/$(find_ci resources/app.asar)"
 	[ -f "$app" ] || app="$game/$(find_ci resources/app)"

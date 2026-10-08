@@ -88,9 +88,11 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/nwdata" sh ./rpgm "$fx/nw" 2>&1)
 	check 'a package.nw game is unpacked without unzip and run' "electron got $fx/nwdata/rpgm/unpacked/"
 	out=$(cd "$fx/nwdata" && find . -type f); check 'with its Shift-JIS file names decoded' '決定.ogg'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --cheat "$fx/packed" 2>&1)
-	check '--cheat reaches a packed game after unpacking' 'cheat=1'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm -c "$fx/mv" 2>&1); check '-c is --cheat' 'cheat=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/mv" 2>&1); check 'the cheat menu is on by default' 'cheat=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --no-cheat "$fx/packed" 2>&1)
+	check '--no-cheat reaches a packed game after unpacking' 'cheat= '
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm -C "$fx/mv" 2>&1); check '-C is --no-cheat' 'cheat= '
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm -C -c "$fx/mv" 2>&1); check 'the old -c still turns it on' 'cheat=1'
 	out=$(PATH="$fx/bin:$PATH" sh ./rpgm --editor "$fx/mv" 2>&1); check 'the old --editor is gone' 'unknown option'
 	mkdir -p "$fx/my words"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/ja en.json" "$fx/packed" 2>&1)
@@ -124,7 +126,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/xpa" 2>&1); check 'an XP archive-only game runs as RGSS1' 'rgss=1'
 	check 'a missing RTP is pointed out' "extract it to $fx/data/rpgm/rtp/RPGVX"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/vxa" 2>&1); check 'a VX archive-only game runs as RGSS2' 'rgss=2'
-	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --cheat "$fx/vxa" 2>&1); check '--cheat reaches XP/VX/VX Ace games' 'cheat=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm -C "$fx/vxa" 2>&1); check '--no-cheat reaches XP/VX/VX Ace games' 'cheat= '
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm --translate "$fx/my words/rgss.json" "$fx/vxa" 2>&1); check '--translate reaches XP/VX/VX Ace games' "translate=$fx/my words/rgss.json"
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm -T "$fx/2k" 2>&1)
 	check 'RPG Maker 2000/2003 runs on EasyRPG, on Wayland' 'easyrpg driver=wayland'

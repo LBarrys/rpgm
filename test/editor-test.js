@@ -13,6 +13,7 @@ function is(desc, got, want) {
 class Actor {
   constructor(id, name) { Object.assign(this, { id, _name: name, level: 1, hp: 50, mp: 10, plus: [0, 0, 0, 0, 0, 0, 0, 0] }); }
   name() { return this._name; }
+  actorId() { return this.id; }
   param(i) { return 100 + this.plus[i]; }
   addParam(i, d) { this.plus[i] += d; }
   changeLevel(n) { this.level = n; }
@@ -65,12 +66,13 @@ is('an item at 0 leaves the list', m.owned('items'), []);
 m.setCount('weapons', 1, 1);
 is('weapons are their own list', m.owned('weapons').map(e => e.name), ['Sword']);
 
-is('party members come first', m.actors().map(a => a.name), ['Therese', 'Harold', 'Marsha']);
-is('and are marked', m.actors()[0].inParty, true);
+is('party members come first', m.roster().map(a => a.name), ['Therese', 'Harold', 'Marsha']);
+is('and are marked', m.roster()[0].inParty, true);
+is('the party alone is listed for god mode', m.party(), [{ id: 2, name: 'Therese' }]);
 m.setActor(1, 'level', 30);
 m.setActor(1, 'hp', 80);
 m.setActor(1, 2, 150);
-const harold = m.actors().find(a => a.id === 1);
+const harold = m.actorInfo(1);
 is('level is changed', harold.level, 30);
 is('HP is changed', harold.hp, 80);
 is('a parameter is set to the value asked for', harold.params[2], 150);

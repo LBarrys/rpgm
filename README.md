@@ -16,7 +16,7 @@ apk add easyrpg-player   # 2000/2003
 ```sh
 rpgm [GAME_DIR | Game.exe]   # default: current directory
 rpgm --test GAME             # playtest
-rpgm --cheat GAME            # F8 cheat menu (god mode, no clip, speed, teleport, items...)
+rpgm --no-cheat GAME         # turn off the F8 cheat menu (god mode, no clip, speed, teleport, items...)
 rpgm --wasd GAME             # MV/MZ: WASD moves, E confirms, Q cancels
 rpgm --translate FILE GAME   # show FILE's {"text": "translation"}; new text is added to fill in
 RPGM_TRANSLATOR='trans -b :en' rpgm -t FILE GAME   # machine-translate empty entries (apk add translate-shell)

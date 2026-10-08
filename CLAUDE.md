@@ -24,7 +24,7 @@ Runs Windows RPG Maker games natively on Alpine Linux (musl), without Wine.
 - MV/MZ: behave like NW.js (e.g. `require`/`process` in the page, no `module`/`exports`).
 - RGSS shims loaded before the game's scripts hook with `alias_method`, never `prepend`
   (a game's later `alias` would recurse forever). `prepend` only after game scripts load.
-- Options get a short and long form (`-c|--cheat`, `-t|--translate`, `-T|--test`, `-e|--edit-save`).
+- Options get a short and long form (`-C|--no-cheat`, `-t|--translate`, `-T|--test`, `-e|--edit-save`).
 - Cheat state that should survive is kept in the save, on the player.
 
 ## README rules
