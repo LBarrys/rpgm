@@ -188,13 +188,32 @@ run_pmjs() {
 	dir=$game
 	www=$(find_ci www)
 	[ -z "$www" ] || [ ! -d "$game/$www/js" ] || dir="$game/$www"
-	echo "rpgm: running on PMJS (experimental); the cheat menu, -t, -w, -T and *.rpgm.js need electron" >&2
+	echo "rpgm: running on PMJS (experimental); -t, -w, -T and *.rpgm.js need electron" >&2
 	cache="${XDG_CACHE_HOME:-$HOME/.cache}/rpgm/pmjs/$id"
 	mkdir -p "$cache" || die "cannot create $cache"
 	printf '{ "assetPreparation": { "cacheRoot": %s } }\n' "$(json "$cache/assets")" >"$cache/config.json"
-	pmjs prepare --game "$dir" --config "$cache/config.json" >&2 || exit 1
+	set -- --game "$dir" --config "$cache/config.json"
+	if [ -z "$cheat" ]; then :
+	elif pmjs help 2>/dev/null | grep -q -- --adapter; then
+		pmjs_cheats >"$cache/cheats.js" || die "cannot write $cache/cheats.js"
+		set -- "$@" --adapter "$cache/cheats.js"
+	else
+		echo "rpgm: this pmjs cannot load rpgm's F8 cheat menu (it needs pmjs prepare --adapter)" >&2
+	fi
+	pmjs prepare "$@" >&2 || exit 1
 	export SDL_VIDEODRIVER=wayland
 	exec pmjs run --game "$dir" --save-root "$dir/save"
+}
+
+# The cheat menu as one PMJS adapter: editor.js's model, the on-screen menu, and the hook
+# that installs them once the game's plugins have loaded.
+pmjs_cheats() {
+	printf '(function () {\nvar editor = (function () { var module = { exports: {} };\n'
+	cat "$here/editor.js"
+	printf '\nreturn module.exports; })();\nvar cheats = (function () { var module = { exports: {} };\n'
+	cat "$here/pmjs-cheats.js"
+	printf '\nreturn module.exports; })();\n'
+	printf "PMJS.phases.on('afterGuestPlugins', 'rpgm.cheats', function () { cheats.install(globalThis, editor); });\n})();\n"
 }
 
 run_electron() {

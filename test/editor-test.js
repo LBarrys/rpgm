@@ -1,5 +1,5 @@
 'use strict';
-const { model, value } = require('../lib/editor.js');
+const { model, value, install } = require('../lib/editor.js');
 
 let failed = 0;
 function is(desc, got, want) {
@@ -212,5 +212,14 @@ is('a spot is remembered with its map and position', c.spots(), [{ name: 'Inn', 
 is('and kept in local storage', JSON.parse(store.get('rpgm-editor-spots')).length, 1);
 c.forget(0);
 is('and forgotten', c.spots(), []);
+
+delete pl._rpgmCheats;
+const page = { ...g, $gamePlayer: Object.assign(new Player(), { _rpgmCheats: { noclip: true } }), handlers: {} };
+delete page.rpgmCheats;
+page.addEventListener = (type, f) => { page.handlers[type] = f; };
+page.document = { createElement: () => ({ append() {} }) };
+install(page);
+page.handlers.load();
+is('cheats kept in a save work once the page loads, before F8 is pressed', page.$gamePlayer.isThrough(), true);
 
 process.exit(failed ? 1 : 0);
