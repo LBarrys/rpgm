@@ -80,6 +80,19 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "electron got $fx/nwdir/Package.nw "
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'Electron is started on Wayland' 'args=--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
+	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1); check 'RPGM_PMJS without pmjs says where to get it' 'pmjs is not installed (https://github.com/bbbreaddd/pmjs)'
+	# shellcheck disable=SC2016
+	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
+	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
+	check 'RPGM_PMJS prepares an MV game from its www folder' "pmjs prepare --game $fx/mv/www driver="
+	check 'then runs it on Wayland' "pmjs run --game $fx/mv/www driver=wayland"
+	check 'and says what only electron does' 'running on PMJS (experimental)'
+	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz driver=wayland"
+	mkdir -p "$fx/html" && echo '{"main": "index.html"}' >"$fx/html/package.json"
+	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/html" 2>&1); check 'other NW.js games stay on electron' 'electron got'
+	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs (experimental)"
+	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/mz" 2>&1); check 'without RPGM_PMJS, MZ stays on electron' 'electron got'
+	rm "$fx/bin/pmjs"
 	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./rpgm "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
 	mkdir -p "$fx/nw"

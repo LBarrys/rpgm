@@ -50,7 +50,8 @@ Games run on Wayland only. RTPs go in ~/.local/share/rpgm/rtp/ (RPG Maker
 2000/2003: RPG2000, RPG2003; XP: Standard; VX: RPGVX; VX Ace: RPGVXAce).
 Environment: RPGM_RGSS_SKIP (shims to leave out), RPGM_MKXPZ_PRELOAD
 (mkxp-z's scripts/preload, if not found), RPGM_YJIT=1 (XP/VX/VX Ace: try
-Ruby's JIT compiler; experimental, x86-64 only), RPGM_TRANSLATOR (with -t: a
+Ruby's JIT compiler; experimental, x86-64 only), RPGM_PMJS=1 (MV/MZ: run on
+PMJS instead of electron; experimental, keeps its own saves), RPGM_TRANSLATOR (with -t: a
 command that reads text on stdin and prints its translation, used to fill
 in empty translations, e.g. 'trans -b :en').
 EOF
@@ -131,6 +132,10 @@ rtp_names() {
 	[ -z "$ini" ] || tr -d '\r' <"$game/$ini" | sed -n 's/^RTP[1-3]\{0,1\} *= *\(..*\)$/\1/p'
 }
 json() { printf '"%s"' "$(printf %s "$1" | sed 's/[\\"]/\\&/g')"; }
+PMJS_URL=https://github.com/bbbreaddd/pmjs
+electron_info() {
+	if have electron; then echo "runtime: $(command -v electron)"; else echo "runtime: electron not installed (apk add electron)"; fi
+}
 
 case $mode in
 info)
@@ -154,8 +159,12 @@ info)
 	rm2k)
 		if have easyrpg-player; then echo "runtime: $(command -v easyrpg-player)"; else echo "runtime: easyrpg-player not installed (apk add easyrpg-player)"; fi
 		echo "rtp:     $rtp/RPG2000 and $rtp/RPG2003, if the game needs one" ;;
-	*)
-		if have electron; then echo "runtime: $(command -v electron)"; else echo "runtime: electron not installed (apk add electron)"; fi ;;
+	mv | mz)
+		if [ -z "${RPGM_PMJS:-}" ]; then electron_info
+		elif have pmjs; then echo "runtime: $(command -v pmjs) (experimental)"
+		else echo "runtime: pmjs not installed ($PMJS_URL)"
+		fi ;;
+	*) electron_info ;;
 	esac
 	exit 0 ;;
 esac
@@ -172,6 +181,18 @@ flags='--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
 # shellcheck disable=SC3045
 ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
 
+# Experimental: PMJS runs MV/MZ on Node without a browser. Its saves are its own.
+run_pmjs() {
+	have pmjs || die "RPGM_PMJS is set but pmjs is not installed ($PMJS_URL)"
+	dir=$game
+	www=$(find_ci www)
+	[ -z "$www" ] || [ ! -d "$game/$www/js" ] || dir="$game/$www"
+	echo "rpgm: running on PMJS (experimental); the cheat menu, -t, -w, -T and *.rpgm.js need electron" >&2
+	pmjs prepare --game "$dir" >&2 || exit 1
+	export SDL_VIDEODRIVER=wayland
+	exec pmjs run --game "$dir"
+}
+
 run_electron() {
 	have electron || die "electron is not installed (apk add electron, Alpine edge testing)"
 	win="${XDG_DATA_HOME:-$HOME/.local/share}/rpgm/windows"
@@ -183,6 +204,7 @@ run_electron() {
 
 case $engine in
 mv | mz | nwjs)
+	[ -z "${RPGM_PMJS:-}" ] || [ "$engine" = nwjs ] || run_pmjs
 	export RPGM_GAME="$game" RPGM_TEST="$test" RPGM_CHEAT="$cheat" RPGM_WASD="$wasd" RPGM_TRANSLATE="$translate"
 	run_electron "$here" ;;
 nwjs-zip | evb)
