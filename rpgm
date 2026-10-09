@@ -51,7 +51,7 @@ Games run on Wayland only. RTPs go in ~/.local/share/rpgm/rtp/ (RPG Maker
 Environment: RPGM_RGSS_SKIP (shims to leave out), RPGM_MKXPZ_PRELOAD
 (mkxp-z's scripts/preload, if not found), RPGM_YJIT=1 (XP/VX/VX Ace: try
 Ruby's JIT compiler; experimental, x86-64 only), RPGM_PMJS=1 (MV/MZ: run on
-PMJS instead of electron; experimental, keeps its own saves), RPGM_TRANSLATOR (with -t: a
+PMJS instead of electron; experimental), RPGM_TRANSLATOR (with -t: a
 command that reads text on stdin and prints its translation, used to fill
 in empty translations, e.g. 'trans -b :en').
 EOF
@@ -181,16 +181,20 @@ flags='--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
 # shellcheck disable=SC3045
 ulimit -n "$(ulimit -H -n)" 2>/dev/null || true
 
-# Experimental: PMJS runs MV/MZ on Node without a browser. Its saves are its own.
+# Experimental: PMJS runs MV/MZ on Node without a browser. Saves go to the game's save
+# folder, where NW.js keeps them; PMJS's asset cache to ours.
 run_pmjs() {
 	have pmjs || die "RPGM_PMJS is set but pmjs is not installed ($PMJS_URL)"
 	dir=$game
 	www=$(find_ci www)
 	[ -z "$www" ] || [ ! -d "$game/$www/js" ] || dir="$game/$www"
 	echo "rpgm: running on PMJS (experimental); the cheat menu, -t, -w, -T and *.rpgm.js need electron" >&2
-	pmjs prepare --game "$dir" >&2 || exit 1
+	cache="${XDG_CACHE_HOME:-$HOME/.cache}/rpgm/pmjs/$id"
+	mkdir -p "$cache" || die "cannot create $cache"
+	printf '{ "assetPreparation": { "cacheRoot": %s } }\n' "$(json "$cache/assets")" >"$cache/config.json"
+	pmjs prepare --game "$dir" --config "$cache/config.json" >&2 || exit 1
 	export SDL_VIDEODRIVER=wayland
-	exec pmjs run --game "$dir"
+	exec pmjs run --game "$dir" --save-root "$dir/save"
 }
 
 run_electron() {

@@ -83,11 +83,13 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1); check 'RPGM_PMJS without pmjs says where to get it' 'pmjs is not installed (https://github.com/bbbreaddd/pmjs)'
 	# shellcheck disable=SC2016
 	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
-	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
-	check 'RPGM_PMJS prepares an MV game from its www folder' "pmjs prepare --game $fx/mv/www driver="
-	check 'then runs it on Wayland' "pmjs run --game $fx/mv/www driver=wayland"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
+	check 'RPGM_PMJS prepares an MV game from its www folder' "pmjs prepare --game $fx/mv/www --config"
+	check 'then runs it on Wayland, saving where NW.js does' "pmjs run --game $fx/mv/www --save-root $fx/mv/www/save driver=wayland"
+	check 'with its asset cache kept out of the game' "--config $fx/cache/rpgm/pmjs/"
 	check 'and says what only electron does' 'running on PMJS (experimental)'
-	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz driver=wayland"
+	out=$(cat "$fx"/cache/rpgm/pmjs/*/config.json); check 'in the cache folder' "\"cacheRoot\": \"$fx/cache/rpgm/pmjs/"
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
 	mkdir -p "$fx/html" && echo '{"main": "index.html"}' >"$fx/html/package.json"
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/html" 2>&1); check 'other NW.js games stay on electron' 'electron got'
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs (experimental)"
