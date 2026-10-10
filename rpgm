@@ -205,6 +205,15 @@ run_pmjs() {
 	fi
 	pmjs prepare "$@" >&2 || exit 1
 	export SDL_VIDEODRIVER=wayland
+	# The window electron would open (package.json's, else 816x624): PMJS otherwise fills
+	# the screen and stretches the game, blurring it (1280x720 to 1920x1080).
+	# shellcheck disable=SC2016
+	[ -n "${PMJS_WINDOW_SIZE:-}" ] || PMJS_WINDOW_SIZE=$(node -e '
+		let w = {};
+		try { w = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).window || {}; } catch (e) {}
+		if (!w.fullscreen) console.log((+w.width || 816) + "x" + (+w.height || 624));
+	' "$game/$(find_ci package.json)" 2>/dev/null)
+	[ -z "${PMJS_WINDOW_SIZE:-}" ] || export PMJS_WINDOW_SIZE
 	# Decode each image when first drawn, as Electron does, not all on load (rpgm's pmjs recipe)
 	export PMJS_DEFER_IMAGES="${PMJS_DEFER_IMAGES-1}"
 	exec pmjs run --game "$dir" --save-root "$dir/save"
