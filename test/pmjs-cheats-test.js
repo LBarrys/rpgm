@@ -69,6 +69,7 @@ const w = {
   $gameSwitches: { value: id => switches[id], setValue: (id, v) => { switches[id] = v; } },
   $gameVariables: { value: id => vars[id], setValue: (id, v) => { vars[id] = v; } },
   $gameMap: { mapId: () => 1, width: () => 20, height: () => 15 },
+  $gameSystem: { mainFontFace: () => 'rmmz-mainfont, sans-serif' },
   $gamePlayer: new Player(),
   $dataActors: [null, { id: 1, name: 'Hero' }],
   $dataItems: [null, { id: 1, name: 'Potion' }, { id: 2, name: 'Ether' }],
@@ -89,6 +90,7 @@ frame();
 is('the game runs while the menu is shut', w.SceneManager._scene.updates, 1);
 frame('rpgmCheat');
 is('F8 opens the menu over the scene', [menu.open, texts().includes('God mode: Hero')], [true, true]);
+is('in the game font on MZ', sprite().bitmap.fontFace, 'rmmz-mainfont, sans-serif');
 frame();
 is('the game is paused while it is open', w.SceneManager._scene.updates, 1);
 frame('ok');
