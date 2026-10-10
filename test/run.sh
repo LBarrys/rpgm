@@ -82,7 +82,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'Electron is started on Wayland' 'args=--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1); check 'RPGM_PMJS without pmjs says where to get it' 'pmjs is not installed (https://github.com/bbbreaddd/pmjs)'
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\nif [ "$1" = help ]; then echo "${PMJS_HELP:-pmjs prepare --game DIR [--adapter FILE]}"; exit; fi\necho "pmjs $* driver=${SDL_VIDEODRIVER:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
+	printf '#!/bin/sh\nif [ "$1" = help ]; then echo "${PMJS_HELP:-pmjs prepare --game DIR [--adapter FILE]}"; exit; fi\necho "pmjs $* driver=${SDL_VIDEODRIVER:-} defer=${PMJS_DEFER_IMAGES:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
 	check 'RPGM_PMJS prepares an MV game from its www folder' "pmjs prepare --game $fx/mv/www --config"
 	check 'then runs it on Wayland, saving where NW.js does' "pmjs run --game $fx/mv/www --save-root $fx/mv/www/save driver=wayland"
@@ -98,6 +98,9 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'a pmjs without --adapter runs the game without it, saying so' "cannot load rpgm's F8 cheat menu"
 	case $out in *--adapter\ *) fail=$((fail + 1)); echo "FAIL and passes no adapter" ;; *) pass=$((pass + 1)); echo "  ok and passes no adapter" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
+	check 'and images are decoded when first drawn, as in electron' 'driver=wayland defer=1'
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_DEFER_IMAGES=0 RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1)
+	check 'unless PMJS_DEFER_IMAGES=0' 'driver=wayland defer=0'
 	mkdir -p "$fx/html" && echo '{"main": "index.html"}' >"$fx/html/package.json"
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/html" 2>&1); check 'other NW.js games stay on electron' 'electron got'
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs (experimental)"

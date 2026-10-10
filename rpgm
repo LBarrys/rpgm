@@ -202,6 +202,8 @@ run_pmjs() {
 	fi
 	pmjs prepare "$@" >&2 || exit 1
 	export SDL_VIDEODRIVER=wayland
+	# Decode each image when first drawn, as Electron does, not all on load (rpgm's pmjs recipe)
+	export PMJS_DEFER_IMAGES="${PMJS_DEFER_IMAGES-1}"
 	exec pmjs run --game "$dir" --save-root "$dir/save"
 }
 
