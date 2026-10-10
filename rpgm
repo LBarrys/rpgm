@@ -196,24 +196,12 @@ run_pmjs() {
 	set -- --game "$dir" --config "$cache/config.json"
 	skip=
 	for name in $(printf '%s' "${RPGM_PMJS_SKIP:-}" | tr ',' ' '); do skip="$skip${skip:+, }$(json "$name")"; done
-	if [ -z "$cheat$skip" ]; then :
-	elif pmjs help 2>/dev/null | grep -q -- --adapter; then
+	if [ -n "$cheat$skip" ]; then
 		pmjs_adapter "$skip" >"$cache/rpgm.js" || die "cannot write $cache/rpgm.js"
 		set -- "$@" --adapter "$cache/rpgm.js"
-	else
-		echo "rpgm: this pmjs cannot load rpgm's F8 cheat menu or RPGM_PMJS_SKIP (it needs pmjs prepare --adapter)" >&2
 	fi
 	pmjs prepare "$@" >&2 || exit 1
 	export SDL_VIDEODRIVER=wayland
-	# The window electron would open (package.json's, else 816x624): PMJS otherwise fills
-	# the screen and stretches the game, blurring it (1280x720 to 1920x1080).
-	# shellcheck disable=SC2016
-	[ -n "${PMJS_WINDOW_SIZE:-}" ] || PMJS_WINDOW_SIZE=$(node -e '
-		let w = {};
-		try { w = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).window || {}; } catch (e) {}
-		if (!w.fullscreen) console.log((+w.width || 816) + "x" + (+w.height || 624));
-	' "$game/$(find_ci package.json)" 2>/dev/null)
-	[ -z "${PMJS_WINDOW_SIZE:-}" ] || export PMJS_WINDOW_SIZE
 	exec pmjs run --game "$dir" --save-root "$dir/save"
 }
 

@@ -82,11 +82,10 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'Electron is started on Wayland' 'args=--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1); check 'RPGM_PMJS without pmjs says where to get it' 'pmjs is not installed (https://github.com/LBarrys/pmjs-rpgm)'
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\nif [ "$1" = help ]; then echo "${PMJS_HELP:-pmjs prepare --game DIR [--adapter FILE]}"; exit; fi\necho "pmjs $* driver=${SDL_VIDEODRIVER:-} window=${PMJS_WINDOW_SIZE:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
+	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
 	check 'RPGM_PMJS prepares an MV game from its www folder' "pmjs prepare --game $fx/mv/www --config"
 	check 'then runs it on Wayland, saving where NW.js does' "pmjs run --game $fx/mv/www --save-root $fx/mv/www/save driver=wayland"
-	check "in electron's default window size, not stretched to the screen" 'window=816x624'
 	check 'with its asset cache kept out of the game' "--config $fx/cache/rpgm/pmjs/"
 	check 'and says what only electron does' 'running on PMJS (experimental)'
 	check 'the F8 cheat menu is loaded as a PMJS adapter' "/rpgm.js driver="
@@ -108,19 +107,7 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	' "$fx"/cache/rpgm/pmjs/*/rpgm.js 2>&1)
 	check 'which leaves those plugins out before any loads, with or without their folder' 'beforePlugins MOD/DRGN_TranslationUI=false Other=false Kept=true'
 	check 'saying so' 'rpgm: RPGM_PMJS_SKIP leaves out MOD/DRGN_TranslationUI'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_HELP=old RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
-	check 'a pmjs without --adapter runs the game without it, saying so' "cannot load rpgm's F8 cheat menu or RPGM_PMJS_SKIP"
-	case $out in *--adapter\ *) fail=$((fail + 1)); echo "FAIL and passes no adapter" ;; *) pass=$((pass + 1)); echo "  ok and passes no adapter" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
-	echo '{ "name": "mz", "window": { "width": 1280, "height": 720 } }' >"$fx/mz/package.json"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1)
-	check "the window is package.json's, as in electron" 'window=1280x720'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_WINDOW_SIZE=1920x1080 RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1)
-	check 'unless PMJS_WINDOW_SIZE is set' 'window=1920x1080'
-	echo '{ "name": "mz", "window": { "fullscreen": true } }' >"$fx/mz/package.json"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1)
-	case $out in *window=[0-9]*) fail=$((fail + 1)); echo "FAIL or the game asks for full screen" ;; *) pass=$((pass + 1)); echo "  ok or the game asks for full screen" ;; esac
-	rm "$fx/mz/package.json"
 	mkdir -p "$fx/html" && echo '{"main": "index.html"}' >"$fx/html/package.json"
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/html" 2>&1); check 'other NW.js games stay on electron' 'electron got'
 	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs (experimental)"
