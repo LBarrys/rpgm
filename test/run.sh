@@ -80,9 +80,9 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "electron got $fx/nwdir/Package.nw "
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'Electron is started on Wayland' 'args=--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
-	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1); check 'RPGM_PMJS without pmjs says where to get it' 'pmjs is not installed (https://github.com/bbbreaddd/pmjs)'
+	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1); check 'RPGM_PMJS without pmjs says where to get it' 'pmjs is not installed (https://github.com/LBarrys/pmjs-rpgm)'
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\nif [ "$1" = help ]; then echo "${PMJS_HELP:-pmjs prepare --game DIR [--adapter FILE]}"; exit; fi\necho "pmjs $* driver=${SDL_VIDEODRIVER:-} defer=${PMJS_DEFER_IMAGES:-} window=${PMJS_WINDOW_SIZE:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
+	printf '#!/bin/sh\nif [ "$1" = help ]; then echo "${PMJS_HELP:-pmjs prepare --game DIR [--adapter FILE]}"; exit; fi\necho "pmjs $* driver=${SDL_VIDEODRIVER:-} window=${PMJS_WINDOW_SIZE:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
 	check 'RPGM_PMJS prepares an MV game from its www folder' "pmjs prepare --game $fx/mv/www --config"
 	check 'then runs it on Wayland, saving where NW.js does' "pmjs run --game $fx/mv/www --save-root $fx/mv/www/save driver=wayland"
@@ -112,9 +112,6 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'a pmjs without --adapter runs the game without it, saying so' "cannot load rpgm's F8 cheat menu or RPGM_PMJS_SKIP"
 	case $out in *--adapter\ *) fail=$((fail + 1)); echo "FAIL and passes no adapter" ;; *) pass=$((pass + 1)); echo "  ok and passes no adapter" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
-	check 'and images are decoded when first drawn, as in electron' 'driver=wayland defer=1'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_DEFER_IMAGES=0 RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1)
-	check 'unless PMJS_DEFER_IMAGES=0' 'driver=wayland defer=0'
 	echo '{ "name": "mz", "window": { "width": 1280, "height": 720 } }' >"$fx/mz/package.json"
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1)
 	check "the window is package.json's, as in electron" 'window=1280x720'

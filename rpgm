@@ -133,7 +133,7 @@ rtp_names() {
 	[ -z "$ini" ] || tr -d '\r' <"$game/$ini" | sed -n 's/^RTP[1-3]\{0,1\} *= *\(..*\)$/\1/p'
 }
 json() { printf '"%s"' "$(printf %s "$1" | sed 's/[\\"]/\\&/g')"; }
-PMJS_URL=https://github.com/bbbreaddd/pmjs
+PMJS_URL=https://github.com/LBarrys/pmjs-rpgm
 electron_info() {
 	if have electron; then echo "runtime: $(command -v electron)"; else echo "runtime: electron not installed (apk add electron)"; fi
 }
@@ -214,8 +214,6 @@ run_pmjs() {
 		if (!w.fullscreen) console.log((+w.width || 816) + "x" + (+w.height || 624));
 	' "$game/$(find_ci package.json)" 2>/dev/null)
 	[ -z "${PMJS_WINDOW_SIZE:-}" ] || export PMJS_WINDOW_SIZE
-	# Decode each image when first drawn, as Electron does, not all on load (rpgm's pmjs recipe)
-	export PMJS_DEFER_IMAGES="${PMJS_DEFER_IMAGES-1}"
 	exec pmjs run --game "$dir" --save-root "$dir/save"
 }
 

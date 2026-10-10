@@ -40,7 +40,7 @@ rpgm --info GAME             # show what was detected
   the game's scripts.
 - **A shim breaks a game:** `RPGM_RGSS_SKIP=name,...` skips files in `lib/rgss/`.
 - **Faster XP/VX/VX Ace (experimental, x86-64):** `RPGM_YJIT=1 rpgm GAME`.
-- **MV/MZ without electron (experimental):** [PMJS](https://github.com/bbbreaddd/pmjs), then `RPGM_PMJS=1 rpgm GAME` (no `-t`, `-w`, `-T`; F8 needs `pmjs prepare --adapter`).
+- **MV/MZ without electron (experimental):** [PMJS for rpgm](https://github.com/LBarrys/pmjs-rpgm), then `RPGM_PMJS=1 rpgm GAME` (no `-t`, `-w`, `-T`; F8 needs `pmjs prepare --adapter`).
 - **A plugin stops a game on PMJS** (e.g. one that builds HTML): `RPGM_PMJS_SKIP=name,...` leaves it out on PMJS only.
 
 Saves stay in the game folder; everything else is in `~/.local/share/rpgm/`.
