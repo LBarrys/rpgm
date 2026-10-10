@@ -51,7 +51,8 @@ Games run on Wayland only. RTPs go in ~/.local/share/rpgm/rtp/ (RPG Maker
 Environment: RPGM_RGSS_SKIP (shims to leave out), RPGM_MKXPZ_PRELOAD
 (mkxp-z's scripts/preload, if not found), RPGM_YJIT=1 (XP/VX/VX Ace: try
 Ruby's JIT compiler; experimental, x86-64 only), RPGM_PMJS=1 (MV/MZ: run on
-PMJS instead of electron; experimental), RPGM_TRANSLATOR (with -t: a
+PMJS instead of electron; experimental), RPGM_PMJS_SKIP (plugins PMJS should
+leave out, e.g. ones that build HTML), RPGM_TRANSLATOR (with -t: a
 command that reads text on stdin and prints its translation, used to fill
 in empty translations, e.g. 'trans -b :en').
 EOF
@@ -193,12 +194,14 @@ run_pmjs() {
 	mkdir -p "$cache" || die "cannot create $cache"
 	printf '{ "assetPreparation": { "cacheRoot": %s } }\n' "$(json "$cache/assets")" >"$cache/config.json"
 	set -- --game "$dir" --config "$cache/config.json"
-	if [ -z "$cheat" ]; then :
+	skip=
+	for name in $(printf '%s' "${RPGM_PMJS_SKIP:-}" | tr ',' ' '); do skip="$skip${skip:+, }$(json "$name")"; done
+	if [ -z "$cheat$skip" ]; then :
 	elif pmjs help 2>/dev/null | grep -q -- --adapter; then
-		pmjs_cheats >"$cache/cheats.js" || die "cannot write $cache/cheats.js"
-		set -- "$@" --adapter "$cache/cheats.js"
+		pmjs_adapter "$skip" >"$cache/rpgm.js" || die "cannot write $cache/rpgm.js"
+		set -- "$@" --adapter "$cache/rpgm.js"
 	else
-		echo "rpgm: this pmjs cannot load rpgm's F8 cheat menu (it needs pmjs prepare --adapter)" >&2
+		echo "rpgm: this pmjs cannot load rpgm's F8 cheat menu or RPGM_PMJS_SKIP (it needs pmjs prepare --adapter)" >&2
 	fi
 	pmjs prepare "$@" >&2 || exit 1
 	export SDL_VIDEODRIVER=wayland
@@ -207,8 +210,16 @@ run_pmjs() {
 	exec pmjs run --game "$dir" --save-root "$dir/save"
 }
 
-# The cheat menu as one PMJS adapter: editor.js's model, the on-screen menu, and the hook
-# that installs them once the game's plugins have loaded.
+# rpgm's one PMJS adapter: the plugins to leave out ($1, JSON strings), switched off
+# before any loads (a name matches with or without its folder), and the cheat menu.
+pmjs_adapter() {
+	# shellcheck disable=SC2016
+	[ -z "$1" ] || printf 'PMJS.phases.on("beforePlugins", "rpgm.skip", function () {\n\tvar skip = [%s];\n\t$plugins.forEach(function (p) {\n\t\tif (p.status && (skip.indexOf(p.name) >= 0 || skip.indexOf(p.name.split("/").pop()) >= 0)) {\n\t\t\tp.status = false;\n\t\t\tconsole.log("rpgm: RPGM_PMJS_SKIP leaves out " + p.name);\n\t\t}\n\t});\n});\n' "$1"
+	[ -z "$cheat" ] || pmjs_cheats
+}
+
+# The cheat menu: editor.js's model, the on-screen menu, and the hook that installs them
+# once the game's plugins have loaded.
 pmjs_cheats() {
 	printf '(function () {\nvar editor = (function () { var module = { exports: {} };\n'
 	cat "$here/editor.js"

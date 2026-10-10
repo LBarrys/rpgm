@@ -88,14 +88,27 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	check 'then runs it on Wayland, saving where NW.js does' "pmjs run --game $fx/mv/www --save-root $fx/mv/www/save driver=wayland"
 	check 'with its asset cache kept out of the game' "--config $fx/cache/rpgm/pmjs/"
 	check 'and says what only electron does' 'running on PMJS (experimental)'
-	check 'the F8 cheat menu is loaded as a PMJS adapter' "/cheats.js driver="
+	check 'the F8 cheat menu is loaded as a PMJS adapter' "/rpgm.js driver="
 	out=$(cat "$fx"/cache/rpgm/pmjs/*/config.json); check 'in the cache folder' "\"cacheRoot\": \"$fx/cache/rpgm/pmjs/"
-	out=$(node -e "require('vm').runInNewContext(require('fs').readFileSync(process.argv[1], 'utf8'), { PMJS: { phases: { on: (p, id) => console.log('phase', p, id) } } })" "$fx"/cache/rpgm/pmjs/*/cheats.js 2>&1)
+	out=$(node -e "require('vm').runInNewContext(require('fs').readFileSync(process.argv[1], 'utf8'), { PMJS: { phases: { on: (p, id) => console.log('phase', p, id) } } })" "$fx"/cache/rpgm/pmjs/*/rpgm.js 2>&1)
 	check 'and installs itself once the game plugins have loaded' 'phase afterGuestPlugins rpgm.cheats'
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm -C "$fx/mv" 2>&1)
 	case $out in *--adapter*) fail=$((fail + 1)); echo "FAIL -C leaves the PMJS cheat menu out" ;; *) pass=$((pass + 1)); echo "  ok -C leaves the PMJS cheat menu out" ;; esac
+	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 RPGM_PMJS_SKIP='DRGN_TranslationUI, Other' sh ./rpgm -C "$fx/mv" 2>&1)
+	check 'RPGM_PMJS_SKIP is passed as the adapter, even without the cheat menu' "/rpgm.js driver="
+	# shellcheck disable=SC2016
+	out=$(node -e '
+		const ps = [{ name: "MOD/DRGN_TranslationUI", status: true }, { name: "Other", status: true }, { name: "Kept", status: true }];
+		const on = {};
+		require("vm").runInNewContext(require("fs").readFileSync(process.argv[1], "utf8"),
+			{ console, $plugins: ps, PMJS: { phases: { on: (phase, id, f) => { on[phase] = f; } } } });
+		on.beforePlugins();
+		console.log(Object.keys(on).join(" "), ps.map(p => p.name + "=" + p.status).join(" "));
+	' "$fx"/cache/rpgm/pmjs/*/rpgm.js 2>&1)
+	check 'which leaves those plugins out before any loads, with or without their folder' 'beforePlugins MOD/DRGN_TranslationUI=false Other=false Kept=true'
+	check 'saying so' 'rpgm: RPGM_PMJS_SKIP leaves out MOD/DRGN_TranslationUI'
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" PMJS_HELP=old RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
-	check 'a pmjs without --adapter runs the game without it, saying so' "cannot load rpgm's F8 cheat menu"
+	check 'a pmjs without --adapter runs the game without it, saying so' "cannot load rpgm's F8 cheat menu or RPGM_PMJS_SKIP"
 	case $out in *--adapter\ *) fail=$((fail + 1)); echo "FAIL and passes no adapter" ;; *) pass=$((pass + 1)); echo "  ok and passes no adapter" ;; esac
 	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
 	check 'and images are decoded when first drawn, as in electron' 'driver=wayland defer=1'
