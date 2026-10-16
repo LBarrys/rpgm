@@ -80,38 +80,9 @@ require('fs').writeFileSync(process.argv[1], evb({ name: '%DEFAULT FOLDER%', chi
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/nwdir" 2>&1); check 'a package.nw folder runs without unpacking' "electron got $fx/nwdir/Package.nw "
 	out=$(PATH="$fx/bin:$PATH" XDG_DATA_HOME="$fx/data" sh ./rpgm "$fx/packed" 2>&1)
 	check 'Electron is started on Wayland' 'args=--ozone-platform=wayland --enable-features=WaylandWindowDecorations'
-	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1); check 'RPGM_PMJS without pmjs says where to get it' 'pmjs is not installed (https://github.com/LBarrys/pmjs-rpgm)'
 	# shellcheck disable=SC2016
-	printf '#!/bin/sh\necho "pmjs $* driver=${SDL_VIDEODRIVER:-}"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mv" 2>&1)
-	check 'RPGM_PMJS prepares an MV game from its www folder' "pmjs prepare --game $fx/mv/www --config"
-	check 'then runs it on Wayland, saving where NW.js does' "pmjs run --game $fx/mv/www --save-root $fx/mv/www/save driver=wayland"
-	check 'with its asset cache kept out of the game' "--config $fx/cache/rpgm/pmjs/"
-	check 'and says what only electron does' 'running on PMJS (experimental)'
-	check 'the F8 cheat menu is loaded as a PMJS adapter' "/rpgm.js driver="
-	out=$(cat "$fx"/cache/rpgm/pmjs/*/config.json); check 'in the cache folder' "\"cacheRoot\": \"$fx/cache/rpgm/pmjs/"
-	out=$(node -e "require('vm').runInNewContext(require('fs').readFileSync(process.argv[1], 'utf8'), { PMJS: { phases: { on: (p, id) => console.log('phase', p, id) } } })" "$fx"/cache/rpgm/pmjs/*/rpgm.js 2>&1)
-	check 'and installs itself once the game plugins have loaded' 'phase afterGuestPlugins rpgm.cheats'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm -C "$fx/mv" 2>&1)
-	case $out in *--adapter*) fail=$((fail + 1)); echo "FAIL -C leaves the PMJS cheat menu out" ;; *) pass=$((pass + 1)); echo "  ok -C leaves the PMJS cheat menu out" ;; esac
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 RPGM_PMJS_SKIP='DRGN_TranslationUI, Other' sh ./rpgm -C "$fx/mv" 2>&1)
-	check 'RPGM_PMJS_SKIP is passed as the adapter, even without the cheat menu' "/rpgm.js driver="
-	# shellcheck disable=SC2016
-	out=$(node -e '
-		const ps = [{ name: "MOD/DRGN_TranslationUI", status: true }, { name: "Other", status: true }, { name: "Kept", status: true }];
-		const on = {};
-		require("vm").runInNewContext(require("fs").readFileSync(process.argv[1], "utf8"),
-			{ console, $plugins: ps, PMJS: { phases: { on: (phase, id, f) => { on[phase] = f; } } } });
-		on.beforePlugins();
-		console.log(Object.keys(on).join(" "), ps.map(p => p.name + "=" + p.status).join(" "));
-	' "$fx"/cache/rpgm/pmjs/*/rpgm.js 2>&1)
-	check 'which leaves those plugins out before any loads, with or without their folder' 'beforePlugins MOD/DRGN_TranslationUI=false Other=false Kept=true'
-	check 'saying so' 'rpgm: RPGM_PMJS_SKIP leaves out MOD/DRGN_TranslationUI'
-	out=$(PATH="$fx/bin:$PATH" XDG_CACHE_HOME="$fx/cache" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'an MZ game runs from its own folder' "pmjs run --game $fx/mz --save-root $fx/mz/save driver=wayland"
-	mkdir -p "$fx/html" && echo '{"main": "index.html"}' >"$fx/html/package.json"
-	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/html" 2>&1); check 'other NW.js games stay on electron' 'electron got'
-	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm -i "$fx/mz" 2>&1); check '--info names pmjs' "runtime: $fx/bin/pmjs (experimental)"
-	out=$(PATH="$fx/bin:$PATH" sh ./rpgm "$fx/mz" 2>&1); check 'without RPGM_PMJS, MZ stays on electron' 'electron got'
+	printf '#!/bin/sh\necho "pmjs $*"\n' >"$fx/bin/pmjs" && chmod +x "$fx/bin/pmjs"
+	out=$(PATH="$fx/bin:$PATH" RPGM_PMJS=1 sh ./rpgm "$fx/mz" 2>&1); check 'MV/MZ run on electron, even with pmjs and the old RPGM_PMJS' 'electron got'
 	rm "$fx/bin/pmjs"
 	out=$(PATH="$fx/bin:$PATH" WAYLAND_DISPLAY='' sh ./rpgm "$fx/packed" 2>&1); check 'without a Wayland session nothing runs' 'Wayland only'
 	out=$(cd "$fx/data" && find . -type f | sort); check 'its files are unpacked' 'www/js/rpg_core.js'
